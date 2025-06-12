@@ -1,0 +1,143 @@
+﻿@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.Extensions.Localization
+@using System.Reflection
+@using UPortal.Data.Models
+
+
+<FluentDialogHeader ShowDismiss="false">
+    <FluentLabel Typo="Typography.H6">Add External Application</FluentLabel>
+</FluentDialogHeader>
+
+<FluentDialogBody>
+    <EditForm Model="ApplicationModel" OnValidSubmit="HandleValidSubmit">
+        <DataAnnotationsValidator />
+        <FluentValidationSummary />
+
+        <FluentStack Orientation="Orientation.Vertical" VerticalGap="10">
+            <FluentTextField @bind-Value="ApplicationModel.AppName" Label=AppName Placeholder="Enter application name" Required="true" />
+            <FluentValidationMessage For="@(() => ApplicationModel.AppName)" />
+
+            <FluentTextField @bind-Value="ApplicationModel.AppUrl" Label=Page URL Placeholder="https://example.com/my-app" Required="true" Type="TextFieldType.Url" />
+            <FluentValidationMessage For="@(() => ApplicationModel.AppUrl)" />
+
+            <FluentStack Orientation="Orientation.Horizontal" VerticalAlignment="VerticalAlignment.Bottom">
+                <FluentCombobox @bind-Value="ApplicationModel.IconName" Placeholder="Select an icon" Items="@fluentIconNames" Style="width: 200px;" Height="200px" />
+                @if (!string.IsNullOrEmpty(ApplicationModel.IconName))
+                {
+                    var icon = GetIconByName(ApplicationModel.IconName);
+
+                    @if (icon is not null)
+                    {
+                        <FluentIcon Value="@icon"
+                                    Color="@Color.Success" />
+                    }
+                    else
+                    {
+                        <FluentIcon Value="@(new Icons.Regular.Size24.ErrorCircle())"
+                                    Color="@Color.Error" />
+                        <small>'@ApplicationModel.IconName' not found.</small>
+                    }
+                }
+            </FluentStack>
+            <FluentValidationMessage For="@(() => ApplicationModel.IconName)" />
+        </FluentStack>
+
+        <FluentDialogFooter>
+            <FluentButton Appearance="Appearance.Accent" Type="ButtonType.Submit">Save</FluentButton>
+            <FluentButton Appearance="Appearance.Neutral" OnClick="Cancel">Cancel</FluentButton>
+        </FluentDialogFooter>
+    </EditForm>
+</FluentDialogBody>
+
+
+@code {
+    /// <summary>
+    /// Gets or sets the model for the external application being added or edited.
+    /// This model is bound to the form fields.
+    /// </summary>
+    [Parameter]
+    public ExternalApplicationDto ApplicationModel { get; set; } = new ExternalApplicationDto();
+
+    /// <summary>
+    /// Callback invoked when the form is valid and submitted for saving.
+    /// Passes the <see cref="ApplicationModel"/> to the parent component.
+    /// </summary>
+    [Parameter]
+    public EventCallback<ExternalApplicationDto> OnSave { get; set; }
+
+    /// <summary>
+    /// Callback invoked when the cancel button is clicked or the dialog is dismissed.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    /// <summary>
+    /// Handles the valid submission of the form.
+    /// Invokes the <see cref="OnSave"/> callback with the current application model.
+    /// </summary>
+    private async Task HandleValidSubmit()
+    {
+        // In a real scenario, further validation might be needed here
+        // or checking if ApplicationName is unique, etc., before invoking OnSave.
+        await OnSave.InvokeAsync(ApplicationModel);
+    }
+
+    /// <summary>
+    /// Handles the cancellation action.
+    /// Invokes the <see cref="OnCancel"/> callback.
+    /// </summary>
+    private async Task Cancel()
+    {
+        await OnCancel.InvokeAsync();
+    }
+
+    private List<string> fluentIconNames = new List<string>
+    {
+        "Home", "AppFolder", "Link", "DataPie", "Settings", "Mail", "Calendar", "Search", "Filter", "Edit", "Delete", "Save", "Add", "Remove", "User", "Group", "Upload", "Download", "Chat", "Info", "Warning", "Error", "CheckmarkCircle", "DismissCircle", "QuestionCircle"
+    };
+
+    /// <summary>
+    /// Gets a Fluent UI Icon instance from its string name.
+    /// This method is robust against library namespace changes and works
+    /// with the Blazor linker once the assembly is preserved.
+    /// </summary>
+    /// <param name="iconName">The name of the icon (e.g., "Home").</param>
+    /// <returns>An Icon object instance or null if not found.</returns>
+    private static Icon? GetIconByName(string iconName)
+    {
+        if (string.IsNullOrWhiteSpace(iconName))
+        {
+            return null;
+        }
+
+        try
+        {
+            // Get a known icon type to dynamically find its namespace and assembly.
+            // This avoids hardcoding strings.
+            var knownIconType = typeof(Icons.Regular.Size24.CheckboxChecked);
+            var assembly = knownIconType.Assembly;
+
+            // Dynamically get the full name of the container class (e.g., "Microsoft.FluentUI.AspNetCore.Components.Icons+Regular+Size24")
+            // The 'DeclaringType' is the class that contains the type.
+            string containerFullName = knownIconType.DeclaringType.FullName;
+
+            // Construct the final, full name of the icon type we're looking for.
+            string fullTypeName = $"{containerFullName}+{iconName}";
+
+            var iconType = assembly.GetType(fullTypeName);
+
+            if (iconType != null && typeof(Icon).IsAssignableFrom(iconType))
+            {
+                // Create an instance of the found icon type.
+                return Activator.CreateInstance(iconType) as Icon;
+            }
+
+            return null;
+        }
+        catch
+        {
+            // Catch potential errors during reflection and return null.
+            return null;
+        }
+    }
+}

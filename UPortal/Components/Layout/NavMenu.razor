@@ -1,47 +1,31 @@
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.FluentUI.AspNetCore.Components.Icons
-@using UPortal.Dtos // Add this
-@inject IExternalApplicationService ExternalAppService // Add this
-@inject NavigationManager NavigationManager // Add this for IsActive
+@inject IExternalApplicationService ExternalAppService
+@inject NavigationManager NavigationManager
 
-<nav class="navmenu">
-    <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size20.Home())" IconColor="Color.Accent">Home</FluentNavLink>
-    <FluentNavLink Href="/counter" Icon="@(new Icons.Regular.Size20.NumberSymbolSquare())" IconColor="Color.Accent">Counter</FluentNavLink>
-    <FluentNavLink Href="/weather" Icon="@(new Icons.Regular.Size20.WeatherCloudy())" IconColor="Color.Accent">Weather</FluentNavLink>
+<FluentNavMenu Id="main-nav" Collapsible="true" Width="250" Title="Navigation menu" AriaLabel="Main navigation menu">
+    <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size24.Home())" IconColor="Color.Accent">Home</FluentNavLink>
+    <FluentNavGroup Title="Applications" Icon="@(new Icons.Regular.Size24.Apps())" Gap="10px">
+        @if (_externalApplications != null)
+        {
 
-    <div class="nav-separator"></div>
-    <FluentAccordion>
-         <FluentAccordionItem Expanded="true">
-             <Heading>
-                 <FluentIcon Value="@(new Icons.Regular.Size20.Apps())" Color="Color.Neutral" />
-                 <FluentLabel>External Apps</FluentLabel>
-             </Heading>
-             <ChildContent>
-                 @if (_externalApplications == null)
-                 {
-                     <FluentProgressRing />
-                 }
-                 else if (!_externalApplications.Any())
-                 {
-                     <FluentNavLink Href="#" Disabled="true" Icon="@(new Icons.Regular.Size20.Info())">No apps yet</FluentNavLink>
-                 }
-                 else
-                 {
-                     @foreach (var app in _externalApplications)
-                     {
-                         <FluentNavLink Href="@($"/app/{app.Id}")" Icon="@(GetIconInstance(app.IconName))" IconColor="Color.Accent">
-                             @app.AppName
-                         </FluentNavLink>
-                     }
-                 }
-             </ChildContent>
-         </FluentAccordionItem>
-     </FluentAccordion>
-</nav>
+            @foreach (var app in _externalApplications)
+            {
+                <FluentNavLink Href="@($"/app/{app.Id}")" Icon="@(GetIconInstance(app.IconName))" IconColor="Color.Accent">
+                    @app.AppName
+                </FluentNavLink>
+            }
+        }
+    </FluentNavGroup>
+    <FluentNavGroup Title="Admin" Icon="@(new Icons.Regular.Size24.PersonAlert())" Gap="10px">
+        <FluentNavLink Href="/admin/locations" Icon="@(new Icons.Regular.Size24.Building())" IconColor="Color.Accent">Locations</FluentNavLink>
+        <FluentNavLink Href="/admin/machines" Icon="@(new Icons.Regular.Size24.Desktop())" IconColor="Color.Accent">Machines</FluentNavLink>
+    </FluentNavGroup>
+</FluentNavMenu>
+
 
 @code {
     private List<ExternalApplicationDto>? _externalApplications;
-    private bool IsExpanded { get; set; } = true; // Controls the accordion item
 
     protected override async Task OnInitializedAsync()
     {
@@ -80,6 +64,6 @@
         };
     }
 
-     // This method could be used if we implement IDisposable and subscribe to a service event
-     // public void Dispose() { /* Unsubscribe from service events */ }
+    // This method could be used if we implement IDisposable and subscribe to a service event
+    // public void Dispose() { /* Unsubscribe from service events */ }
 }
