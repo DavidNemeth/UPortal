@@ -46,21 +46,21 @@
     // This is a simplified version. Ensure it aligns with other components.
     private Icon GetIconInstance(string iconFullName)
     {
-        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size20.Question();
+        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size24.Question();
 
         return iconFullName switch
         {
-            "@Icons.Regular.Size24.Home" => new Icons.Regular.Size20.Home(), // Note: NavMenu might prefer smaller icons (Size20)
-            "@Icons.Regular.Size24.AppFolder" => new Icons.Regular.Size20.AppFolder(),
-            "@Icons.Regular.Size24.Link" => new Icons.Regular.Size20.Link(),
-            "@Icons.Regular.Size24.Globe" => new Icons.Regular.Size20.Globe(),
-            "@Icons.Regular.Size24.Settings" => new Icons.Regular.Size20.Settings(),
-            "@Icons.Regular.Size24.Mail" => new Icons.Regular.Size20.Mail(),
-            "@Icons.Regular.Size24.CalendarLtr" => new Icons.Regular.Size20.CalendarLtr(),
-            "@Icons.Regular.Size24.Document" => new Icons.Regular.Size20.Document(),
-            "@Icons.Regular.Size24.Heart" => new Icons.Regular.Size20.Heart(),
-            "@Icons.Regular.Size24.Star" => new Icons.Regular.Size20.Star(),
-            _ => new Icons.Regular.Size20.Question(), // Default for unknown icons
+            "@Icons.Regular.Size24.Home" => new Icons.Regular.Size24.Home(),
+            "@Icons.Regular.Size24.AppFolder" => new Icons.Regular.Size24.AppFolder(),
+            "@Icons.Regular.Size24.Link" => new Icons.Regular.Size24.Link(),
+            "@Icons.Regular.Size24.Globe" => new Icons.Regular.Size24.Globe(),
+            "@Icons.Regular.Size24.Settings" => new Icons.Regular.Size24.Settings(),
+            "@Icons.Regular.Size24.Mail" => new Icons.Regular.Size24.Mail(),
+            "@Icons.Regular.Size24.CalendarLtr" => new Icons.Regular.Size24.CalendarLtr(),
+            "@Icons.Regular.Size24.Document" => new Icons.Regular.Size24.Document(),
+            "@Icons.Regular.Size24.Heart" => new Icons.Regular.Size24.Heart(),
+            "@Icons.Regular.Size24.Star" => new Icons.Regular.Size24.Star(),
+            _ => new Icons.Regular.Size24.Question(), // Default for unknown icons
         };
     }
 

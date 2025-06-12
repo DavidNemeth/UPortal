@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.Identity.Web;
+using Microsoft.Identity.Web.UI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.FluentUI.AspNetCore.Components;
 using UPortal.Components;
@@ -5,6 +8,27 @@ using UPortal.Data;
 using UPortal.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Add services to the container.
+builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+
+// Optional: If you want to call protected APIs from your web app
+// .EnableTokenAcquisitionToCallDownstreamApi(builder.Configuration.GetSection("AzureAd:Scopes").Get<string[]>())
+// .AddMicrosoftGraph(builder.Configuration.GetSection("Graph")) // Example for Graph API
+// .AddInMemoryTokenCaches();
+
+builder.Services.AddAuthorization(options =>
+{
+    // By default, all authenticated users are authorized.
+    // This policy ensures that any unauthenticated access attempt will trigger the OIDC challenge.
+    options.FallbackPolicy = options.DefaultPolicy;
+});
+
+// For Blazor Server, ensure Microsoft Identity UI is added for handling redirects correctly
+// and providing default pages for sign-in, sign-out.
+builder.Services.AddRazorPages().AddMicrosoftIdentityUI();
+
 
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 // To allow creating DbContext instances on demand in other services
@@ -38,6 +62,9 @@ app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 app.UseAntiforgery();
+
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();

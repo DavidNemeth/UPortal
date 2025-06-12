@@ -15,6 +15,9 @@
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components" Version="4.12.0" />
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Emoji" Version="4.12.0" />
     <PackageReference Include="Microsoft.FluentUI.AspNetCore.Components.Icons" Version="4.12.0" />
+    <PackageReference Include="Microsoft.Identity.Web" Version="2.17.0" />
+    <PackageReference Include="Microsoft.Identity.Web.UI" Version="2.17.0" />
+    <PackageReference Include="Microsoft.Identity.Web.DownstreamApi" Version="2.17.0" />
   </ItemGroup>
 
 </Project>
