@@ -1,0 +1,139 @@
+﻿@using System.ComponentModel.DataAnnotations
+@implements IDialogContentComponent<CreateMachineDto>
+
+@inject ILocationService LocationService
+@inject IAppUserService AppUserService
+
+@if (_editContext is not null)
+{
+    <FluentDialogHeader ShowDismiss="true">
+        <FluentStack>
+            <FluentIcon Value="@(new Icons.Regular.Size24.Desktop())" />
+            <FluentLabel Typo="Typography.PaneHeader">
+                @Dialog.Instance.Parameters.Title
+            </FluentLabel>
+        </FluentStack>
+    </FluentDialogHeader>
+
+    <FluentDialogBody>
+        <EditForm EditContext="_editContext">
+            <DataAnnotationsValidator />
+
+            <FluentStack Orientation="Orientation.Vertical">
+                <FluentTextField Name="machine_name"
+                                 @bind-Value="@Content.Name"
+                                 Label="Machine Name"
+                                 Placeholder="Enter the machine name..."
+                                 Required="true"
+                                 Style="width: 100%;" />
+
+                @if (locations is not null)
+                {
+                    <FluentSelect Label="Location"
+                                  Value="@Content.LocationId.ToString()"
+                                  ValueChanged="@OnLocationChanged"
+                                  TOption="string"
+                                  Required="true">
+                        @* Generating options manually gives more control *@
+                        @foreach (var location in locations)
+                        {
+                            <FluentOption Value="@location.Id.ToString()">@location.Name</FluentOption>
+                        }
+                    </FluentSelect>
+                }
+                else
+                {
+                    <p><em>Loading locations...</em></p>
+                }
+
+                @if (appUsers is not null)
+                {
+                    <FluentSelect Label="Assigned User (Optional)"
+                                  Value="@(Content.AppUserId?.ToString() ?? "0")"
+                                  ValueChanged="@OnUserChanged"
+                                  TOption="string">
+                        @* We add a default option for "Unassigned" *@
+                        <FluentOption Value="0">-- Unassigned --</FluentOption>
+                        @foreach (var user in appUsers)
+                        {
+                            <FluentOption Value="@user.Id.ToString()">@user.Name</FluentOption>
+                        }
+                    </FluentSelect>
+                }
+                else
+                {
+                    <p><em>Loading users...</em></p>
+                }
+
+            </FluentStack>
+        </EditForm>
+    </FluentDialogBody>
+
+    <FluentDialogFooter>
+        <FluentButton Appearance="Appearance.Neutral" OnClick="@CancelAsync">
+            Cancel
+        </FluentButton>
+        <FluentButton Appearance="Appearance.Accent" OnClick="@SaveAsync" Disabled="@(!_editContext.Validate())">
+            Save
+        </FluentButton>
+    </FluentDialogFooter>
+}
+
+
+@code
+{
+    private EditContext _editContext = default!;
+    private List<LocationDto> locations = new();
+    private List<AppUserDto> appUsers = new();
+
+    [CascadingParameter]
+    public FluentDialog Dialog { get; set; } = default!;
+
+    [Parameter]
+    public CreateMachineDto Content { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // OnInitialized is great for one-time setup and data loading.
+        _editContext = new EditContext(Content);
+        locations = await LocationService.GetAllAsync();
+        appUsers = await AppUserService.GetAllAsync();
+    }
+
+    private void OnLocationChanged(string? newLocationId)
+    {
+        if (int.TryParse(newLocationId, out var id) && id > 0)
+        {
+            Content.LocationId = id;
+            _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.LocationId));
+        }
+    }
+
+    private void OnUserChanged(string? newUserId)
+    {
+        if (int.TryParse(newUserId, out var id) && id > 0)
+        {
+            Content.AppUserId = id;
+        }
+        else
+        {
+            Content.AppUserId = null; // Handle the "Unassigned" case
+        }
+        _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.AppUserId));
+    }
+
+    private async Task SaveAsync()
+    {
+        // We manually validate before closing the dialog.
+        if (!_editContext.Validate())
+        {
+            return;
+        }
+        await Dialog.CloseAsync(Content);
+    }
+
+    private async Task CancelAsync()
+    {
+        await Dialog.CancelAsync();
+    }
+}

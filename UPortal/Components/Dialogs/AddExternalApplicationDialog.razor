@@ -1,0 +1,25 @@
+﻿@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.FluentUI.AspNetCore.Components.Icons
+@using System.Reflection
+@inject IExternalApplicationService ExternalApplicationService
+@implements IDialogContentComponent<ExternalApplicationDto>
+
+
+
+@code
+{
+    private EditContext _editContext = default!;
+
+    [CascadingParameter]
+    public FluentDialog Dialog { get; set; } = default!;
+
+    [Parameter]
+    public ExternalApplicationDto Content { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(Content);
+    }
+
+
+}

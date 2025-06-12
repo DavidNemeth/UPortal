@@ -1,0 +1,20 @@
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace UPortal.Data.Models
+{
+    public class ExternalApplication
+    {
+        public int Id { get; set; }
+
+        [Required(ErrorMessage = "App Name is required.")]
+        [StringLength(100, ErrorMessage = "App Name must be less than 100 characters.")]
+        public string AppName { get; set; }
+
+        [Required(ErrorMessage = "App URL is required.")]
+        [Url(ErrorMessage = "Invalid URL format.")]
+        public string AppUrl { get; set; }
+
+        [Required(ErrorMessage = "Icon is required.")]
+        public string IconName { get; set; }
+    }
+}

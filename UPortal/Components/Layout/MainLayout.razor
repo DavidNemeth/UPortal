@@ -1,0 +1,33 @@
+﻿@inherits LayoutComponentBase
+
+<FluentToastProvider />
+<FluentDialogProvider />
+<FluentTooltipProvider />
+<FluentMessageBarProvider />
+<FluentMenuProvider />
+
+<FluentLayout>
+    <FluentHeader>
+        Some Header Text
+        <FluentSpacer />
+        Aligned to the end
+    </FluentHeader>
+
+    <FluentStack Orientation="Orientation.Horizontal" Width="100%">
+        <NavMenu></NavMenu>
+
+        <FluentBodyContent>
+            @Body
+
+        </FluentBodyContent>
+    </FluentStack>
+
+    <FluentFooter Style="@("height: 40px; color: white; text-align: center;")">
+        Footer Text
+    </FluentFooter>
+</FluentLayout>
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

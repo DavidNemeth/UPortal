@@ -1,0 +1,121 @@
+﻿@page "/admin/locations"
+@inject ILocationService LocationService
+
+
+<PageTitle>Locations</PageTitle>
+
+<FluentStack VerticalAlignment="VerticalAlignment.Center" HorizontalGap="10">
+    <h1>Locations Administration</h1>
+    <FluentButton IconStart="@(new Icons.Regular.Size20.Add())" Appearance="Appearance.Accent" OnClick="@OpenAddDialogAsync">
+        Add Location
+    </FluentButton>
+</FluentStack>
+
+@if (locations is null)
+{
+    <FluentProgressRing />
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <FluentDataGrid Pagination="@pagination"
+                    RowSize="@DataGridRowSize.Medium"
+                    Items="@locations.AsQueryable()"
+                    GridTemplateColumns="1fr 3fr 1fr 1fr 2fr" TGridItem="LocationDto">
+        <PropertyColumn Property="@(dto => dto.Id)" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.Name)" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.UserCount)" Title="User Count" Align="Align.End" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.MachineCount)" Title="Machine Count" Align="Align.End" Sortable="true" />
+
+        <TemplateColumn Title="Actions" Align="Align.End">
+            <FluentButton IconStart="@(new Icons.Regular.Size16.Edit())" OnClick="@(() => OpenEditDialogAsync(context))"></FluentButton>
+            <FluentButton IconStart="@(new Icons.Regular.Size16.Delete())" Appearance="Appearance.Stealth" OnClick="@(() => ConfirmDeleteAsync(context))"></FluentButton>
+        </TemplateColumn>
+
+    </FluentDataGrid>
+
+    <FluentPaginator State="@pagination" />
+}
+
+@code {
+    private List<LocationDto> locations;
+    PaginationState pagination = new PaginationState() { ItemsPerPage = 10 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshGridDataAsync();
+    }
+
+    private async Task OpenAddDialogAsync()
+    {
+        var dialog = await DialogService.ShowDialogAsync<LocationDialog>(new CreateLocationDto(), new DialogParameters()
+        {
+            Title = "Add New Location",
+            PreventDismissOnOverlayClick = true,
+            PreventScroll = true
+        });
+
+        var result = await dialog.Result;
+
+        if (!result.Cancelled && result.Data is not null)
+        {
+            var newLocationDto = (CreateLocationDto)result.Data;
+            await LocationService.CreateAsync(newLocationDto);
+            ToastService.ShowSuccess("Location created successfully.");
+            await RefreshGridDataAsync();
+        }
+    }
+
+    private async Task OpenEditDialogAsync(LocationDto locationToEdit)
+    {
+        // The dialog expects a CreateLocationDto, so we create one from the existing location's data.
+        var dto = new CreateLocationDto { Name = locationToEdit.Name };
+
+        var dialog = await DialogService.ShowDialogAsync<LocationDialog>(dto, new DialogParameters()
+        {
+            Title = $"Edit '{locationToEdit.Name}'",
+            PreventDismissOnOverlayClick = true,
+            PreventScroll = true
+        });
+
+        var result = await dialog.Result;
+
+        if (!result.Cancelled && result.Data is not null)
+        {
+            var updatedDto = (CreateLocationDto)result.Data;
+            await LocationService.UpdateAsync(locationToEdit.Id, updatedDto);
+            ToastService.ShowSuccess("Location updated successfully.");
+            await RefreshGridDataAsync();
+        }
+    }
+
+    private async Task ConfirmDeleteAsync(LocationDto locationToDelete)
+    {
+        var dialog = await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete '{locationToDelete.Name}'?",
+            "Yes, delete", "No, cancel", "Confirm Deletion");
+
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            var success = await LocationService.DeleteAsync(locationToDelete.Id);
+            if (success)
+            {
+                ToastService.ShowSuccess("Location deleted successfully.");
+                await RefreshGridDataAsync();
+            }
+            else
+            {
+                ToastService.ShowError("Failed to delete location.");
+            }
+        }
+    }
+
+    private async Task RefreshGridDataAsync()
+    {
+        // Centralize the data loading logic to easily refresh the grid after an action.
+        locations = await LocationService.GetAllAsync();
+        StateHasChanged();
+    }
+}

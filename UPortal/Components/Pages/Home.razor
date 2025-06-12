@@ -1,0 +1,121 @@
+﻿@page "/"
+@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.FluentUI.AspNetCore.Components.Icons
+@inject IDialogService DialogService
+@inject IExternalApplicationService ExternalAppService
+
+<PageTitle>Home</PageTitle>
+
+<h1>External Applications Dashboard</h1>
+
+@if (_applications == null)
+{
+    <p><em>Loading applications...</em></p>
+    <FluentProgressRing />
+}
+else if (!_applications.Any())
+{
+    <p>No external applications have been added yet. Click the "Add Application" button to get started.</p>
+}
+else
+{
+    <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem;">
+        @foreach (var app in _applications)
+        {
+            <FluentCard Style="width: 200px; height: 150px; position: relative;">
+                <FluentStack Orientation="Orientation.Vertical" HorizontalAlignment="HorizontalAlignment.Center" VerticalAlignment="VerticalAlignment.Center" Style="height: 100%; padding-bottom: 20px;">
+                    <FluentIcon Value="@(GetIconInstance(app.IconName))" Style="margin-bottom: 10px;" />
+                    <FluentLabel Typo="Typography.Body">@app.AppName</FluentLabel>
+                </FluentStack>
+                <FluentButton Appearance="Appearance.Stealth"
+                              IconStart="@(new Icons.Regular.Size24.Delete())"
+                              OnClick="@(() => OpenDeleteConfirmationDialogAsync(app))"
+                              Style="position: absolute; top: 0.25rem; right: 0.25rem;" />
+            </FluentCard>
+        }
+    </div>
+}
+
+<div style="position: fixed; bottom: 60px; right: 20px; z-index: 1000;">
+    <FluentButton IconStart="@(new Icons.Regular.Size24.Add())"
+                  Appearance="Appearance.Accent"
+                  OnClick="OpenAddDialogAsync"
+                  Title="Add External Application" />
+</div>
+
+@code {
+    private List<ExternalApplicationDto>? _applications;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadApplicationsAsync();
+    }
+
+    private async Task LoadApplicationsAsync()
+    {
+        _applications = await ExternalAppService.GetAllAsync();
+        StateHasChanged();
+    }
+
+    private async Task OpenAddDialogAsync()
+    {
+        var dialog = await DialogService.ShowDialogAsync<AddExternalApplicationDialog>(new DialogParameters()
+        {
+            Title = "Add New External Application",
+            PreventDismissOnOverlayClick = true,
+            PreventScroll = true
+        });
+
+        DialogResult? result = await dialog.Result;
+
+        if (result != null && !result.Cancelled && result.Data is ExternalApplicationDto newApp)
+        {
+            await LoadApplicationsAsync(); // Refresh the list
+        }
+    }
+
+    private async Task OpenDeleteConfirmationDialogAsync(ExternalApplicationDto appToDelete)
+    {
+        var dialog = await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete '{appToDelete.AppName}'?",
+            "Yes, delete", "No, cancel", "Confirm Deletion");
+
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            try
+            {
+                await ExternalAppService.DeleteAsync(appToDelete.Id);
+                ToastService.ShowSuccess("Application deleted successfully.");
+                await LoadApplicationsAsync();
+            }
+            catch (Exception)
+            {
+                ToastService.ShowError("Failed to delete Application.");
+            }
+        }
+    }
+
+    // Basic icon instance resolver (can be expanded or moved to a helper class)
+    private Icon GetIconInstance(string iconFullName)
+    {
+        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size24.Question();
+
+        // Simplified based on AddExternalApplicationDialog's GetIconInstance
+        return iconFullName switch
+        {
+            "@Icons.Regular.Size24.Home" => new Icons.Regular.Size24.Home(),
+            "@Icons.Regular.Size24.AppFolder" => new Icons.Regular.Size24.AppFolder(),
+            "@Icons.Regular.Size24.Link" => new Icons.Regular.Size24.Link(),
+            "@Icons.Regular.Size24.Globe" => new Icons.Regular.Size24.Globe(),
+            "@Icons.Regular.Size24.Settings" => new Icons.Regular.Size24.Settings(),
+            "@Icons.Regular.Size24.Mail" => new Icons.Regular.Size24.Mail(),
+            "@Icons.Regular.Size24.CalendarLtr" => new Icons.Regular.Size24.CalendarLtr(),
+            "@Icons.Regular.Size24.Document" => new Icons.Regular.Size24.Document(),
+            "@Icons.Regular.Size24.Heart" => new Icons.Regular.Size24.Heart(),
+            "@Icons.Regular.Size24.Star" => new Icons.Regular.Size24.Star(),
+            _ => new Icons.Regular.Size24.Question(), // Default for unknown icons
+        };
+    }
+}

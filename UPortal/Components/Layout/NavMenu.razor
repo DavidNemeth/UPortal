@@ -1,0 +1,11 @@
+﻿<FluentNavMenu Id="main-nav" Collapsible="true" Width="250" Title="Navigation menu" AriaLabel="Main navigation menu">
+    <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size24.Home())" IconColor="Color.Accent">Home</FluentNavLink>
+    <FluentNavLink Href="counter" Icon="@(new Icons.Regular.Size24.NumberSymbol())" IconColor="Color.Accent">Counter</FluentNavLink>
+    <FluentNavLink Href="weather" Icon="@(new Icons.Regular.Size24.WeatherPartlyCloudyDay())" IconColor="Color.Accent">Weather</FluentNavLink>
+
+    <FluentNavGroup Title="Admin" Gap="10px" Expanded="true">
+        <FluentNavLink Href="/admin/locations" Icon="@(new Icons.Regular.Size24.Building())" IconColor="Color.Accent">Locations</FluentNavLink>
+        <FluentNavLink Href="/admin/machines" Icon="@(new Icons.Regular.Size24.Desktop())" IconColor="Color.Accent">Machines</FluentNavLink>
+    </FluentNavGroup>
+
+</FluentNavMenu>
