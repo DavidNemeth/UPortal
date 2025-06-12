@@ -1,8 +1,10 @@
 ﻿@inherits LayoutComponentBase
-@inject IJSRuntime JSRuntime
 @inject NavigationManager NavigationManager
+@using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.FluentUI.AspNetCore.Components.Icons
 @using Microsoft.AspNetCore.Components.Authorization
+
+<FluentDesignTheme @bind-Mode="@_themeMode" OfficeColor="@_themeColor" StorageName="theme" />
 
 <FluentToastProvider />
 <FluentDialogProvider />
@@ -12,7 +14,7 @@
 
 <FluentLayout Style="display: flex; flex-direction: column; height: 100vh;">
     <FluentHeader>
-        Portal Header
+        <FluentLabel Typo="Typography.PageTitle">Portal Header</FluentLabel>
         <FluentSpacer />
         <FluentButton IconStart="@(new Icons.Regular.Size24.Settings())" Appearance="Appearance.Stealth" OnClick="@ToggleThemeSelector" Title="Theme Settings" Style="margin-right: 10px;" />
 
@@ -21,37 +23,36 @@
                 <FluentLabel Style="margin-right: 10px;">Hello, @context.User.Identity?.Name!</FluentLabel>
                 <FluentButton Appearance="Appearance.Stealth" OnClick="HandleSignOut">Sign Out</FluentButton>
             </Authorized>
-            <NotAuthorized>
-                @* Auto-redirect handles sign-in, so this section can be minimal or empty *@
-            </NotAuthorized>
         </AuthorizeView>
     </FluentHeader>
 
     <FluentStack Orientation="Orientation.Horizontal" Width="100%" Style="flex-grow: 1; overflow: hidden;">
-        <NavMenu /> @* NavMenu typically has its own width and scroll management if needed *@
+        <NavMenu />
         <FluentBodyContent Style="flex-grow: 1; overflow-y: auto;">
-            <div class="content-area" style="padding: 1rem;"> @* Added padding here for content spacing *@
+            <div class="content-area" style="padding: 1rem;">
                 @Body
             </div>
         </FluentBodyContent>
     </FluentStack>
 
-    <FluentFooter Style="height: 40px; color: var(--neutral-foreground-rest); background-color: var(--neutral-layer-2); text-align: center; padding: 0.5rem; flex-shrink: 0;">
+    <FluentFooter Style="text-align: center; padding: 0.5rem; flex-shrink: 0;">
         &copy; @DateTime.Now.Year UPortal. All rights reserved.
     </FluentFooter>
 </FluentLayout>
 
 @if (isThemeSelectorVisible)
 {
-    <FluentDialog @bind-Hidden="@(!isThemeSelectorVisible)" Modal="true" TrapFocus="true" PreventScroll="true" Id="theme-selector-dialog">
+    <FluentDialog @bind-Hidden="@isDialogHidden" Modal="true" TrapFocus="true" PreventScroll="true" Id="theme-selector-dialog">
         <FluentDialogHeader>Select Theme</FluentDialogHeader>
         <FluentDialogBody>
             <FluentStack VerticalGap="10">
-                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme("default"))" Style="width: 100%;">Default</FluentButton>
-                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme("light"))" Style="width: 100%;">Light</FluentButton>
-                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme("dark"))" Style="width: 100%;">Dark</FluentButton>
-                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme("highcontrast"))" Style="width: 100%;">High Contrast</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.System))" Style="width: 100%;">System (Default)</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.Light))" Style="width: 100%;">Light</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.Dark))" Style="width: 100%;">Dark</FluentButton>
             </FluentStack>
+            <p style="font-size: var(--type-ramp-minus-1-font-size); margin-top: 15px;">
+                <strong>Note:</strong> High Contrast mode is automatically detected and applied if enabled in your operating system.
+            </p>
         </FluentDialogBody>
         <FluentDialogFooter>
             <FluentButton Appearance="Appearance.Lightweight" OnClick="@ToggleThemeSelector">Close</FluentButton>
@@ -66,39 +67,27 @@
 </div>
 
 @code {
+    // FIX 3: Add a property for the accent color and set a neutral default.
+    private OfficeColor _themeColor = OfficeColor.Default;
+    private DesignThemeModes _themeMode;
+
     private bool isThemeSelectorVisible = false;
+    private bool isDialogHidden = true;
 
     private void ToggleThemeSelector()
     {
         isThemeSelectorVisible = !isThemeSelectorVisible;
+        isDialogHidden = !isDialogHidden;
     }
 
-    private async Task SelectTheme(string themeName)
+    private void SelectTheme(DesignThemeModes themeMode)
     {
-        await JSRuntime.InvokeVoidAsync("themeInterop.applyTheme", themeName);
-        await JSRuntime.InvokeVoidAsync("localStorage.setItem", "theme", themeName);
-        isThemeSelectorVisible = false;
+        _themeMode = themeMode;
+        ToggleThemeSelector();
     }
 
     private void HandleSignOut()
     {
         NavigationManager.NavigateTo("/MicrosoftIdentity/Account/SignOut", forceLoad: true);
-    }
-
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (firstRender)
-        {
-            var storedTheme = await JSRuntime.InvokeAsync<string>("localStorage.getItem", "theme");
-            if (!string.IsNullOrEmpty(storedTheme))
-            {
-                await JSRuntime.InvokeVoidAsync("themeInterop.applyTheme", storedTheme);
-            }
-            else
-            {
-                // Optionally apply a default theme if none is stored
-                await JSRuntime.InvokeVoidAsync("themeInterop.applyTheme", "default");
-            }
-        }
     }
 }
