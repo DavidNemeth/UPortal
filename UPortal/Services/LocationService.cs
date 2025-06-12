@@ -1,7 +1,6 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using UPortal.Data;
 using UPortal.Dtos;
-using UPortal.Services;
 
 namespace UPortal.Services
 {
@@ -56,7 +55,7 @@ namespace UPortal.Services
             await using var context = await _contextFactory.CreateDbContextAsync();
 
             // Manually map from the DTO to the entity.
-            var newLocation = new Location
+            var newLocation = new Data.Models.Location
             {
                 Name = locationDto.Name
             };

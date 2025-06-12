@@ -51,7 +51,7 @@ namespace UPortal.Services
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
 
-            var newMachine = new Machine
+            var newMachine = new Data.Models.Machine
             {
                 Name = machineDto.Name,
                 LocationId = machineDto.LocationId,
