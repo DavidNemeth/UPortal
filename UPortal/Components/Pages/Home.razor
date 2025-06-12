@@ -1,8 +1,11 @@
 ﻿@page "/"
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.FluentUI.AspNetCore.Components.Icons
+@using UPortal.Dtos // Add this if not already present
 @inject IDialogService DialogService
 @inject IExternalApplicationService ExternalAppService
+@inject IToastService ToastService // Already added in a previous step
+@inject NavigationManager NavigationManager // Add this line
 
 <PageTitle>Home</PageTitle>
 
@@ -22,15 +25,17 @@ else
     <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem;">
         @foreach (var app in _applications)
         {
-            <FluentCard Style="width: 200px; height: 150px; position: relative;">
+            <FluentCard Style="width: 200px; height: 150px; position: relative; cursor: pointer;" @onclick="@(() => NavigateToAppView(app.Id))">
                 <FluentStack Orientation="Orientation.Vertical" HorizontalAlignment="HorizontalAlignment.Center" VerticalAlignment="VerticalAlignment.Center" Style="height: 100%; padding-bottom: 20px;">
                     <FluentIcon Value="@(GetIconInstance(app.IconName))" Style="margin-bottom: 10px;" />
                     <FluentLabel Typo="Typography.Body">@app.AppName</FluentLabel>
                 </FluentStack>
                 <FluentButton Appearance="Appearance.Stealth"
                               IconStart="@(new Icons.Regular.Size24.Delete())"
-                              OnClick="@(() => OpenDeleteConfirmationDialogAsync(app))"
-                              Style="position: absolute; top: 0.25rem; right: 0.25rem;" />
+                              OnClick="@((e) => { e.StopPropagation(); OpenDeleteConfirmationDialogAsync(app); })"
+                              OnClickStopPropagation="true"
+                              Style="position: absolute; top: 0.25rem; right: 0.25rem;"
+                              Title="Delete @app.AppName" />
             </FluentCard>
         }
     </div>
@@ -51,6 +56,11 @@ else
         await LoadApplicationsAsync();
     }
 
+    private void NavigateToAppView(int appId)
+    {
+        NavigationManager.NavigateTo($"/app/{appId}");
+    }
+
     private async Task LoadApplicationsAsync()
     {
         _applications = await ExternalAppService.GetAllAsync();
@@ -63,14 +73,26 @@ else
         {
             Title = "Add New External Application",
             PreventDismissOnOverlayClick = true,
-            PreventScroll = true
+            PreventScroll = true,
+            Content = new ExternalApplicationDto() // Pass a new DTO instance
         });
 
         DialogResult? result = await dialog.Result;
 
         if (result != null && !result.Cancelled && result.Data is ExternalApplicationDto newApp)
         {
-            await LoadApplicationsAsync(); // Refresh the list
+            // The dialog now returns the DTO. The service call remains here.
+            try
+            {
+                await ExternalAppService.AddAsync(newApp);
+                ToastService.ShowSuccess("Application added successfully.");
+                await LoadApplicationsAsync(); // Refresh the list
+            }
+            catch (Exception ex)
+            {
+                ToastService.ShowError($"Failed to add application: {ex.Message}");
+                // Log the exception ex
+            }
         }
     }
 
@@ -87,12 +109,13 @@ else
             try
             {
                 await ExternalAppService.DeleteAsync(appToDelete.Id);
-                ToastService.ShowSuccess("Application deleted successfully.");
+                ToastService.ShowSuccess("Application deleted successfully."); // Ensure ToastService is injected
                 await LoadApplicationsAsync();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                ToastService.ShowError("Failed to delete Application.");
+                ToastService.ShowError($"Failed to delete application: {ex.Message}"); // Ensure ToastService is injected
+                // Log the exception ex
             }
         }
     }

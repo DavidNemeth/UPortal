@@ -11,7 +11,7 @@ namespace UPortal.Dtos
         public string AppName { get; set; }
 
         [Required(ErrorMessage = "App URL is required.")]
-        [Url(ErrorMessage = "Invalid URL format.")]
+        [Url(ErrorMessage = "Invalid URL format. Please enter a full URL (e.g., http://example.com).")]
         public string AppUrl { get; set; }
 
         [Required(ErrorMessage = "Icon is required.")]
