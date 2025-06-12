@@ -32,6 +32,23 @@ namespace UPortal.Services
                 .ToListAsync();
         }
 
+           public async Task<ExternalApplicationDto?> GetByIdAsync(int id) // Add this method
+           {
+               await using var context = await _contextFactory.CreateDbContextAsync();
+               var app = await context.ExternalApplications.FindAsync(id);
+               if (app == null)
+               {
+                   return null;
+               }
+               return new ExternalApplicationDto
+               {
+                   Id = app.Id,
+                   AppName = app.AppName,
+                   AppUrl = app.AppUrl,
+                   IconName = app.IconName
+               };
+           }
+
         public async Task AddAsync(ExternalApplicationDto externalApplicationDto)
         {
             await using var context = await _contextFactory.CreateDbContextAsync();

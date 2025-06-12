@@ -1,11 +1,85 @@
-﻿<FluentNavMenu Id="main-nav" Collapsible="true" Width="250" Title="Navigation menu" AriaLabel="Main navigation menu">
-    <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size24.Home())" IconColor="Color.Accent">Home</FluentNavLink>
-    <FluentNavLink Href="counter" Icon="@(new Icons.Regular.Size24.NumberSymbol())" IconColor="Color.Accent">Counter</FluentNavLink>
-    <FluentNavLink Href="weather" Icon="@(new Icons.Regular.Size24.WeatherPartlyCloudyDay())" IconColor="Color.Accent">Weather</FluentNavLink>
+@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.FluentUI.AspNetCore.Components.Icons
+@using UPortal.Dtos // Add this
+@inject IExternalApplicationService ExternalAppService // Add this
+@inject NavigationManager NavigationManager // Add this for IsActive
 
-    <FluentNavGroup Title="Admin" Gap="10px" Expanded="true">
-        <FluentNavLink Href="/admin/locations" Icon="@(new Icons.Regular.Size24.Building())" IconColor="Color.Accent">Locations</FluentNavLink>
-        <FluentNavLink Href="/admin/machines" Icon="@(new Icons.Regular.Size24.Desktop())" IconColor="Color.Accent">Machines</FluentNavLink>
-    </FluentNavGroup>
+<nav class="navmenu">
+    <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size20.Home())" IconColor="Color.Accent">Home</FluentNavLink>
+    <FluentNavLink Href="/counter" Icon="@(new Icons.Regular.Size20.NumberSymbolSquare())" IconColor="Color.Accent">Counter</FluentNavLink>
+    <FluentNavLink Href="/weather" Icon="@(new Icons.Regular.Size20.WeatherCloudy())" IconColor="Color.Accent">Weather</FluentNavLink>
 
-</FluentNavMenu>
+    <div class="nav-separator"></div>
+    <FluentAccordion>
+         <FluentAccordionItem Expanded="true">
+             <Heading>
+                 <FluentIcon Value="@(new Icons.Regular.Size20.Apps())" Color="Color.Neutral" />
+                 <FluentLabel>External Apps</FluentLabel>
+             </Heading>
+             <ChildContent>
+                 @if (_externalApplications == null)
+                 {
+                     <FluentProgressRing />
+                 }
+                 else if (!_externalApplications.Any())
+                 {
+                     <FluentNavLink Href="#" Disabled="true" Icon="@(new Icons.Regular.Size20.Info())">No apps yet</FluentNavLink>
+                 }
+                 else
+                 {
+                     @foreach (var app in _externalApplications)
+                     {
+                         <FluentNavLink Href="@($"/app/{app.Id}")" Icon="@(GetIconInstance(app.IconName))" IconColor="Color.Accent">
+                             @app.AppName
+                         </FluentNavLink>
+                     }
+                 }
+             </ChildContent>
+         </FluentAccordionItem>
+     </FluentAccordion>
+</nav>
+
+@code {
+    private List<ExternalApplicationDto>? _externalApplications;
+    private bool IsExpanded { get; set; } = true; // Controls the accordion item
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExternalApplicationsAsync();
+        // A more robust solution would use a shared service to notify NavMenu of changes.
+        // For now, this loads apps when the NavMenu is first initialized.
+        // If an app is added/deleted, a page refresh might be needed to see NavMenu updates,
+        // or we'd need to implement an eventing system.
+    }
+
+    private async Task LoadExternalApplicationsAsync()
+    {
+        _externalApplications = await ExternalAppService.GetAllAsync();
+        StateHasChanged();
+    }
+
+    // Helper to get Icon instance - this should be centralized or made consistent
+    // This is a simplified version. Ensure it aligns with other components.
+    private Icon GetIconInstance(string iconFullName)
+    {
+        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size20.Question();
+
+        return iconFullName switch
+        {
+            "@Icons.Regular.Size24.Home" => new Icons.Regular.Size20.Home(), // Note: NavMenu might prefer smaller icons (Size20)
+            "@Icons.Regular.Size24.AppFolder" => new Icons.Regular.Size20.AppFolder(),
+            "@Icons.Regular.Size24.Link" => new Icons.Regular.Size20.Link(),
+            "@Icons.Regular.Size24.Globe" => new Icons.Regular.Size20.Globe(),
+            "@Icons.Regular.Size24.Settings" => new Icons.Regular.Size20.Settings(),
+            "@Icons.Regular.Size24.Mail" => new Icons.Regular.Size20.Mail(),
+            "@Icons.Regular.Size24.CalendarLtr" => new Icons.Regular.Size20.CalendarLtr(),
+            "@Icons.Regular.Size24.Document" => new Icons.Regular.Size20.Document(),
+            "@Icons.Regular.Size24.Heart" => new Icons.Regular.Size20.Heart(),
+            "@Icons.Regular.Size24.Star" => new Icons.Regular.Size20.Star(),
+            _ => new Icons.Regular.Size20.Question(), // Default for unknown icons
+        };
+    }
+
+     // This method could be used if we implement IDisposable and subscribe to a service event
+     // public void Dispose() { /* Unsubscribe from service events */ }
+}

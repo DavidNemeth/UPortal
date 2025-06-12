@@ -1,25 +1,156 @@
-﻿@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.FluentUI.AspNetCore.Components.Icons
+@using System.ComponentModel.DataAnnotations
 @using System.Reflection
-@inject IExternalApplicationService ExternalApplicationService
+@inject IExternalApplicationService ExternalApplicationService // Keep this if needed for direct service calls, though saving is usually handled by the caller via DialogResult
 @implements IDialogContentComponent<ExternalApplicationDto>
 
+<FluentDialogHeader ShowDismiss="false">
+    <FluentStack Justify="JustifyContent.SpaceBetween">
+        <FluentLabel Typo="Typography.PaneHeader">@Dialog.Instance.Parameters.Title</FluentLabel>
+        <FluentButton IconEnd="@(new Icons.Regular.Size20.Dismiss())" OnClick="@CancelAsync" Appearance="Appearance.Lightweight" />
+    </FluentStack>
+</FluentDialogHeader>
 
+<FluentDialogBody>
+    <EditForm EditContext="_editContext" OnValidSubmit="SaveAsync">
+        <DataAnnotationsValidator />
+        <FluentStack Orientation="Orientation.Vertical" Gap="1.5rem">
+            <FluentTextField @bind-Value="Content.AppName" Label="App Name" Placeholder="Enter application name" Required="true" />
+            <ValidationMessage For="@(() => Content.AppName)" />
 
-@code
-{
+            <FluentTextField @bind-Value="Content.AppUrl" Label="App URL" Placeholder="Enter application URL (e.g., https://example.com)" Required="true" />
+            <ValidationMessage For="@(() => Content.AppUrl)" />
+
+            <div>
+                <FluentLabel For="iconSelect">Icon</FluentLabel>
+                <FluentSelect TOption="IconSelection"
+                                Id="iconSelect"
+                                Items="@_availableIcons"
+                                OptionText="@(i => i.Name)"
+                                OptionValue="@(i => i.FullName)"
+                                @bind-Value="@_selectedIconFullName"
+                                @bind-Value:after="HandleIconSelection"
+                                Placeholder="Select an icon" />
+                <ValidationMessage For="@(() => Content.IconName)" />
+            </div>
+
+            @if (!string.IsNullOrEmpty(_selectedIconFullName) && GetIconInstance(_selectedIconFullName) != null)
+            {
+                <div style="margin-top: 10px; text-align: center;">
+                    <FluentLabel>Icon Preview:</FluentLabel>
+                    <div style="margin-top: 5px;">
+                        <FluentIcon Value="@GetIconInstance(_selectedIconFullName)" Style="width: 32px; height: 32px;" />
+                    </div>
+                </div>
+            }
+        </FluentStack>
+    </EditForm>
+</FluentDialogBody>
+
+<FluentDialogFooter>
+    <FluentButton OnClick="@CancelAsync" Appearance="Appearance.Neutral">Cancel</FluentButton>
+    <FluentButton OnClick="@SaveAsync" Appearance="Appearance.Accent" Disabled="@(!_editContext.Validate() || _isSaving)">Save</FluentButton>
+</FluentDialogFooter>
+
+@code {
     private EditContext _editContext = default!;
+    private bool _isSaving = false;
+    private string? _selectedIconFullName;
 
     [CascadingParameter]
     public FluentDialog Dialog { get; set; } = default!;
 
     [Parameter]
-    public ExternalApplicationDto Content { get; set; } = default!;
+    public ExternalApplicationDto Content { get; set; } = new(); // Initialize to prevent null issues
+
+    public class IconSelection
+    {
+        public string Name { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public Icon IconInstance { get; set; } = default!;
+    }
+
+    private List<IconSelection> _availableIcons = new();
 
     protected override void OnInitialized()
     {
+        if (Content == null)
+        {
+            Content = new ExternalApplicationDto(); // Ensure Content is not null
+        }
         _editContext = new EditContext(Content);
+        _editContext.OnFieldChanged += (s, e) => StateHasChanged(); // Refresh UI on validation state change
+
+        // Populate available icons (subset for example)
+        _availableIcons = new List<IconSelection>
+        {
+            new() { Name = "Home", FullName = "@Icons.Regular.Size24.Home", IconInstance = new Icons.Regular.Size24.Home() },
+            new() { Name = "App Folder", FullName = "@Icons.Regular.Size24.AppFolder", IconInstance = new Icons.Regular.Size24.AppFolder() },
+            new() { Name = "Link", FullName = "@Icons.Regular.Size24.Link", IconInstance = new Icons.Regular.Size24.Link() },
+            new() { Name = "Globe", FullName = "@Icons.Regular.Size24.Globe", IconInstance = new Icons.Regular.Size24.Globe() },
+            new() { Name = "Settings", FullName = "@Icons.Regular.Size24.Settings", IconInstance = new Icons.Regular.Size24.Settings() },
+            new() { Name = "Mail", FullName = "@Icons.Regular.Size24.Mail", IconInstance = new Icons.Regular.Size24.Mail() },
+            new() { Name = "Calendar", FullName = "@Icons.Regular.Size24.CalendarLtr", IconInstance = new Icons.Regular.Size24.CalendarLtr() },
+            new() { Name = "Document", FullName = "@Icons.Regular.Size24.Document", IconInstance = new Icons.Regular.Size24.Document() },
+            new() { Name = "Heart", FullName = "@Icons.Regular.Size24.Heart", IconInstance = new Icons.Regular.Size24.Heart() },
+            new() { Name = "Star", FullName = "@Icons.Regular.Size24.Star", IconInstance = new Icons.Regular.Size24.Star() },
+            new() { Name = "Question", FullName = "@Icons.Regular.Size24.Question", IconInstance = new Icons.Regular.Size24.Question() } // Default/fallback
+        };
+
+        // Pre-select icon if Content.IconName is already set (e.g., when editing)
+        if (!string.IsNullOrEmpty(Content.IconName) && _availableIcons.Any(i => i.FullName == Content.IconName))
+        {
+            _selectedIconFullName = Content.IconName;
+        } else if (_availableIcons.Any())
+        {
+            // Optionally select a default icon if none is pre-selected
+            // _selectedIconFullName = _availableIcons.First().FullName;
+            // Content.IconName = _selectedIconFullName;
+        }
     }
 
+    private void HandleIconSelection()
+    {
+        Content.IconName = _selectedIconFullName ?? string.Empty;
+        _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.IconName));
+        StateHasChanged(); // Ensure preview updates
+    }
 
+    private async Task SaveAsync()
+    {
+        if (_isSaving) return;
+
+        _isSaving = true;
+        if (_editContext.Validate())
+        {
+            // Ensure IconName is set from the selection
+            if (string.IsNullOrEmpty(Content.IconName) && !string.IsNullOrEmpty(_selectedIconFullName))
+            {
+                Content.IconName = _selectedIconFullName;
+            }
+
+            // The service call should ideally be in the component that opens the dialog (e.g., Home.razor)
+            // This dialog should just return the data.
+            // For now, we will assume the ExternalApplicationService.AddAsync is called here if needed,
+            // but the primary mechanism is returning data via Dialog.CloseAsync(Content).
+            // await ExternalApplicationService.AddAsync(Content); // This line might be removed if the caller handles saving.
+            await Dialog.CloseAsync(Content);
+        }
+        _isSaving = false;
+    }
+
+    private async Task CancelAsync()
+    {
+        await Dialog.CancelAsync();
+    }
+
+    // Utility to get Icon instance from its full name string
+    // This should be consistent with Home.razor or centralized in a helper
+    private Icon? GetIconInstance(string? iconFullName)
+    {
+        if (string.IsNullOrEmpty(iconFullName)) return null;
+        var selected = _availableIcons.FirstOrDefault(i => i.FullName == iconFullName);
+        return selected?.IconInstance ?? new Icons.Regular.Size24.Question(); // Fallback icon
+    }
 }

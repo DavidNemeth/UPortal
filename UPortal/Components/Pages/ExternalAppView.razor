@@ -1,0 +1,51 @@
+@page "/app/{AppId:int}"
+@inject IExternalApplicationService ExternalAppService
+@inject NavigationManager NavigationManager
+@using UPortal.Dtos
+
+<PageTitle>@(_application?.AppName ?? "External Application")</PageTitle>
+
+@if (_application == null && _isLoading)
+{
+    <p><em>Loading application details...</em></p>
+    <FluentProgressRing />
+}
+else if (_application == null && !_isLoading)
+{
+    <FluentMessageBox Intent="MessageBoxIntent.Error" Title="Error" Style="width: 100%;">
+        Application not found or could not be loaded.
+        <FluentButton Appearance="Appearance.Accent" OnClick="@(() => NavigationManager.NavigateTo("/"))">Go to Dashboard</FluentButton>
+    </FluentMessageBox>
+}
+else if (_application != null)
+{
+    <h1>@_application.AppName</h1>
+    <p>Viewing: <a href="@_application.AppUrl" target="_blank">@_application.AppUrl</a></p>
+
+    <div style="width: 100%; height: calc(100vh - 200px); border: 1px solid #ccc;">
+        <iframe src="@_application.AppUrl" style="width: 100%; height: 100%; border: none;" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public int AppId { get; set; }
+
+    private ExternalApplicationDto? _application;
+    private bool _isLoading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _isLoading = true;
+        // It's generally better to fetch by ID from the service to ensure data consistency
+        // and not rely solely on parameters passed around (which could be stale or manipulated).
+        _application = await ExternalAppService.GetByIdAsync(AppId);
+        _isLoading = false;
+
+        if (_application == null)
+        {
+            // Optional: Log this occurrence or handle more gracefully
+            Console.WriteLine($"External application with ID {AppId} not found.");
+        }
+    }
+}
