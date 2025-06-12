@@ -1,4 +1,10 @@
 ﻿@inherits LayoutComponentBase
+@inject NavigationManager NavigationManager
+@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.FluentUI.AspNetCore.Components.Icons
+@using Microsoft.AspNetCore.Components.Authorization
+
+<FluentDesignTheme @bind-Mode="@_themeMode" OfficeColor="@_themeColor" StorageName="theme" />
 
 <FluentToastProvider />
 <FluentDialogProvider />
@@ -6,28 +12,82 @@
 <FluentMessageBarProvider />
 <FluentMenuProvider />
 
-<FluentLayout>
+<FluentLayout Style="display: flex; flex-direction: column; height: 100vh;">
     <FluentHeader>
-        Some Header Text
+        <FluentLabel Typo="Typography.PageTitle">Portal Header</FluentLabel>
         <FluentSpacer />
-        Aligned to the end
+        <FluentButton IconStart="@(new Icons.Regular.Size24.Settings())" Appearance="Appearance.Stealth" OnClick="@ToggleThemeSelector" Title="Theme Settings" Style="margin-right: 10px;" />
+
+        <AuthorizeView>
+            <Authorized>
+                <FluentLabel Style="margin-right: 10px;">Hello, @context.User.Identity?.Name!</FluentLabel>
+                <FluentButton Appearance="Appearance.Stealth" OnClick="HandleSignOut">Sign Out</FluentButton>
+            </Authorized>
+        </AuthorizeView>
     </FluentHeader>
 
-    <FluentStack Orientation="Orientation.Horizontal" Width="100%">
-        <NavMenu></NavMenu>
-
-        <FluentBodyContent>
-            @Body
-
+    <FluentStack Orientation="Orientation.Horizontal" Width="100%" Style="flex-grow: 1; overflow: hidden;">
+        <NavMenu />
+        <FluentBodyContent Style="flex-grow: 1; overflow-y: auto;">
+            <div class="content-area" style="padding: 1rem;">
+                @Body
+            </div>
         </FluentBodyContent>
     </FluentStack>
 
-    <FluentFooter Style="@("height: 40px; color: white; text-align: center;")">
-        Footer Text
+    <FluentFooter Style="text-align: center; padding: 0.5rem; flex-shrink: 0;">
+        &copy; @DateTime.Now.Year UPortal. All rights reserved.
     </FluentFooter>
 </FluentLayout>
+
+@if (isThemeSelectorVisible)
+{
+    <FluentDialog @bind-Hidden="@isDialogHidden" Modal="true" TrapFocus="true" PreventScroll="true" Id="theme-selector-dialog">
+        <FluentDialogHeader>Select Theme</FluentDialogHeader>
+        <FluentDialogBody>
+            <FluentStack VerticalGap="10">
+                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.System))" Style="width: 100%;">System (Default)</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.Light))" Style="width: 100%;">Light</FluentButton>
+                <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.Dark))" Style="width: 100%;">Dark</FluentButton>
+            </FluentStack>
+            <p style="font-size: var(--type-ramp-minus-1-font-size); margin-top: 15px;">
+                <strong>Note:</strong> High Contrast mode is automatically detected and applied if enabled in your operating system.
+            </p>
+        </FluentDialogBody>
+        <FluentDialogFooter>
+            <FluentButton Appearance="Appearance.Lightweight" OnClick="@ToggleThemeSelector">Close</FluentButton>
+        </FluentDialogFooter>
+    </FluentDialog>
+}
+
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    // FIX 3: Add a property for the accent color and set a neutral default.
+    private OfficeColor _themeColor = OfficeColor.Default;
+    private DesignThemeModes _themeMode;
+
+    private bool isThemeSelectorVisible = false;
+    private bool isDialogHidden = true;
+
+    private void ToggleThemeSelector()
+    {
+        isThemeSelectorVisible = !isThemeSelectorVisible;
+        isDialogHidden = !isDialogHidden;
+    }
+
+    private void SelectTheme(DesignThemeModes themeMode)
+    {
+        _themeMode = themeMode;
+        ToggleThemeSelector();
+    }
+
+    private void HandleSignOut()
+    {
+        NavigationManager.NavigateTo("/MicrosoftIdentity/Account/SignOut", forceLoad: true);
+    }
+}

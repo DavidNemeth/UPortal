@@ -35,7 +35,7 @@ else
     {
         <FluentGrid Spacing="3">
             <FluentGridItem xs="12" sm="6" md="4" lg="3">
-                <FluentCard Height="120px" Style="width: 200px;  cursor: pointer;" @onclick="@(() => NavigateToAppView(app.Id))">
+                <FluentCard Height="120px" Style="width: 100%; cursor: pointer;" @onclick="@(() => NavigateToAppView(app.Id))">
                     <FluentStack Orientation="Orientation.Vertical" HorizontalAlignment="HorizontalAlignment.Center" VerticalAlignment="VerticalAlignment.Center" Style="height: 100%; padding-bottom: 20px;">
                         <FluentIcon Value="@(GetIconInstance(app.IconName))" Style="margin-bottom: 10px;" />
                         <FluentLabel Typo="Typography.Body">@app.AppName</FluentLabel>
@@ -150,22 +150,22 @@ else
     // Basic icon instance resolver (can be expanded or moved to a helper class)
     private Icon GetIconInstance(string iconFullName)
     {
-        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size24.Question();
+        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size32.Question();
 
         // Simplified based on AddExternalApplicationDialog's GetIconInstance
         return iconFullName switch
         {
-            "@Icons.Regular.Size24.Home" => new Icons.Regular.Size24.Home(),
-            "@Icons.Regular.Size24.AppFolder" => new Icons.Regular.Size24.AppFolder(),
-            "@Icons.Regular.Size24.Link" => new Icons.Regular.Size24.Link(),
-            "@Icons.Regular.Size24.Globe" => new Icons.Regular.Size24.Globe(),
-            "@Icons.Regular.Size24.Settings" => new Icons.Regular.Size24.Settings(),
-            "@Icons.Regular.Size24.Mail" => new Icons.Regular.Size24.Mail(),
-            "@Icons.Regular.Size24.CalendarLtr" => new Icons.Regular.Size24.CalendarLtr(),
-            "@Icons.Regular.Size24.Document" => new Icons.Regular.Size24.Document(),
-            "@Icons.Regular.Size24.Heart" => new Icons.Regular.Size24.Heart(),
-            "@Icons.Regular.Size24.Star" => new Icons.Regular.Size24.Star(),
-            _ => new Icons.Regular.Size24.Question(), // Default for unknown icons
+            "@Icons.Regular.Size24.Home" => new Icons.Regular.Size32.Home(),
+            "@Icons.Regular.Size24.AppFolder" => new Icons.Regular.Size32.AppFolder(),
+            "@Icons.Regular.Size24.Link" => new Icons.Regular.Size32.Link(),
+            "@Icons.Regular.Size24.Globe" => new Icons.Regular.Size32.Globe(),
+            "@Icons.Regular.Size24.Settings" => new Icons.Regular.Size32.Settings(),
+            "@Icons.Regular.Size24.Mail" => new Icons.Regular.Size32.Mail(),
+            "@Icons.Regular.Size24.CalendarLtr" => new Icons.Regular.Size32.CalendarLtr(),
+            "@Icons.Regular.Size24.Document" => new Icons.Regular.Size32.Document(),
+            "@Icons.Regular.Size24.Heart" => new Icons.Regular.Size32.Heart(),
+            "@Icons.Regular.Size24.Star" => new Icons.Regular.Size32.Star(),
+            _ => new Icons.Regular.Size32.Question(), // Default for unknown icons
         };
     }
 }
