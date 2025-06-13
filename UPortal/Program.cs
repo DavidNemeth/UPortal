@@ -8,6 +8,7 @@ using UPortal.Data;
 using UPortal.Services;
 using UPortal.HelperServices;
 using Serilog;
+using Microsoft.OpenApi.Models;
 
 // Configure Serilog early in the application startup.
 // This ensures that all startup activities can be logged.
@@ -102,6 +103,54 @@ try // Main try-catch block for application startup.
     builder.Services.AddScoped<IExternalApplicationService, ExternalApplicationService>();
     builder.Services.AddSingleton<IIconService, IconService>(); // Singleton: single instance for the application lifetime.
 
+    // Add API Explorer and Swagger Gen services
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen(c =>
+    {
+        c.SwaggerDoc("v1", new OpenApiInfo { Title = "UPortal API", Version = "v1" });
+
+        // Configure Swagger to use XML comments.
+        var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+        var xmlPath = System.IO.Path.Combine(System.AppContext.BaseDirectory, xmlFile);
+        if (System.IO.File.Exists(xmlPath))
+        {
+            c.IncludeXmlComments(xmlPath);
+        }
+
+        // Optional: Add security definitions for Azure AD (JWT Bearer)
+        // This helps Swagger UI to send the token correctly.
+        /*
+        c.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
+        {
+            Type = SecuritySchemeType.OAuth2,
+            Flows = new OpenApiOAuth2Flows
+            {
+                Implicit = new OpenApiOAuth2Flow // Or AuthorizationCode, depending on your Azure AD setup for APIs
+                {
+                    AuthorizationUrl = new Uri($"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/oauth2/v2.0/authorize"),
+                    TokenUrl = new Uri($"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/oauth2/v2.0/token"),
+                    Scopes = new Dictionary<string, string>
+                    {
+                        // Define scopes your API expects, e.g., "api://<your-api-client-id>/access_as_user"
+                        // These need to match the scopes defined in Azure AD for your application.
+                        // Example: { "api://your-client-id/user_impersonation", "Access UPortal API" }
+                    }
+                }
+            }
+        });
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "oauth2" }
+                },
+                new[] { /* list required scopes here, e.g., "api://your-client-id/user_impersonation" */ }
+            }
+        });
+        */
+    });
+
     var app = builder.Build();
 
     // Seed initial data into the database. This is often done at startup.
@@ -117,6 +166,19 @@ try // Main try-catch block for application startup.
         // The default HSTS value is 30 days. Consider adjusting for production.
         app.UseHsts();
     }
+  else // Development environment specific configurations
+  {
+    Log.Information("Configuring development environment settings.");
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "UPortal API V1");
+        // Optional: Configure OAuth2 for Swagger UI
+        // c.OAuthClientId(builder.Configuration["AzureAd:ClientId"]); // Client ID of this API registration or a dedicated Swagger UI client
+        // c.OAuthAppName("UPortal API - Swagger UI");
+        // c.OAuthUsePkce(); // If using PKCE
+    });
+  }
 
     // Redirect HTTP requests to HTTPS.
     app.UseHttpsRedirection();
