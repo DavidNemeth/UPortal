@@ -1,11 +1,10 @@
-﻿@using System.ComponentModel.DataAnnotations
-@implements IDialogContentComponent<CreateLocationDto>
-
-@* This component uses the CreateLocationDto as its content model *@
+﻿@using UPortal.Dtos
+@using System.ComponentModel.DataAnnotations
+@implements IDialogContentComponent<UpdateAppUserDto>
 
 <FluentDialogHeader ShowDismiss="true">
-    <FluentStack>
-        <FluentIcon Value="@(new Icons.Regular.Size24.Building())" />
+    <FluentStack VerticalAlignment="VerticalAlignment.Center">
+        <FluentIcon Value="@(new Icons.Regular.Size24.Person())" />
         <FluentLabel Typo="Typography.PaneHeader">
             @Dialog.Instance.Parameters.Title
         </FluentLabel>
@@ -14,15 +13,13 @@
 
 <FluentDialogBody>
     <EditForm EditContext="@_editContext">
-            <DataAnnotationsValidator />
-            <FluentStack Orientation="Orientation.Vertical">
-                <FluentTextField Name="location_name"
-                                 @bind-Value="@Content.Name"
-                                 Label="Location"
-                                 Placeholder="Enter the location name..."
-                                 Required="true"
-                                 Style="width: 100%;" />
-            </FluentStack>
+        <DataAnnotationsValidator />
+        <FluentStack Orientation="Orientation.Horizontal">
+            <FluentSwitch Name="Active" @bind-Value="@Content.IsActive" Label="Active">
+            </FluentSwitch>
+            <FluentSwitch Name="Admin" @bind-Value="@Content.IsAdmin" Label="Admin">
+            </FluentSwitch>
+        </FluentStack>
     </EditForm>
 </FluentDialogBody>
 
@@ -35,15 +32,21 @@
     </FluentButton>
 </FluentDialogFooter>
 
-@code
-{
+@code {
     private EditContext _editContext = default!;
 
     [CascadingParameter]
     public FluentDialog Dialog { get; set; } = default!;
 
     [Parameter]
-    public CreateLocationDto Content { get; set; } = default!;
+    public UpdateAppUserDto Content { get; set; } = default!;
+
+    [Parameter]
+    public string UserName { get; set; } = string.Empty;
+
+    [Parameter]
+    public string AzureAdObjectId { get; set; } = string.Empty;
+
 
     protected override void OnInitialized()
     {
@@ -52,8 +55,10 @@
 
     private async Task SaveAsync()
     {
-        // The OnValidSubmit handler on the EditForm ensures this only runs if the form is valid.
-        await Dialog.CloseAsync(Content);
+        if (_editContext.Validate())
+        {
+            await Dialog.CloseAsync(Content);
+        }
     }
 
     private async Task CancelAsync()

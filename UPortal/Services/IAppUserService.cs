@@ -8,6 +8,6 @@ namespace UPortal.Services
         Task<List<AppUserDto>> GetAllAsync();
         Task<AppUserDto?> GetByAzureAdObjectIdAsync(string azureAdObjectId);
         Task<AppUserDto> CreateOrUpdateUserFromAzureAdAsync(System.Security.Claims.ClaimsPrincipal userPrincipal);
-        Task UpdateUserStatusAsync(int userId, bool isActive);
+        Task UpdateAppUserAsync(int userId, UpdateAppUserDto userToUpdate);
     }
 }

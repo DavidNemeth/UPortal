@@ -3,11 +3,14 @@
 
 <PageTitle>Machines</PageTitle>
 
-<FluentStack VerticalAlignment="VerticalAlignment.Center" HorizontalGap="10">
-    <h1>Machines Administration</h1>
+<FluentStack VerticalAlignment="VerticalAlignment.Center"
+             HorizontalAlignment="HorizontalAlignment.SpaceBetween">
+
+    <h1>Machines</h1>
+
     <FluentButton IconStart="@(new Icons.Regular.Size20.Add())" Appearance="Appearance.Accent" OnClick="@OpenAddDialogAsync">
-        Add Machine
     </FluentButton>
+
 </FluentStack>
 
 @if (machines is null)

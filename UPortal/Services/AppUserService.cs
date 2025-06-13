@@ -61,8 +61,7 @@ namespace UPortal.Services
                 throw new ArgumentNullException(nameof(userPrincipal));
             }
 
-            var azureAdObjectId = userPrincipal.FindFirst(ClaimTypes.NameIdentifier)?.Value ??
-                                  userPrincipal.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
+            var azureAdObjectId = userPrincipal.FindFirst("http://schemas.microsoft.com/identity/claims/objectidentifier")?.Value;
 
             if (string.IsNullOrEmpty(azureAdObjectId))
             {
@@ -106,18 +105,19 @@ namespace UPortal.Services
             };
         }
 
-        public async Task UpdateUserStatusAsync(int userId, bool isActive)
+        public async Task UpdateAppUserAsync(int userId, UpdateAppUserDto userToUpdate)
         {
             await using var context = await _contextFactory.CreateDbContextAsync();
             var appUser = await context.AppUsers.FindAsync(userId);
 
             if (appUser == null)
             {
-                // Or handle as appropriate, e.g., return a status or log
                 throw new KeyNotFoundException($"User with ID {userId} not found.");
             }
 
-            appUser.IsActive = isActive;
+            appUser.IsActive = userToUpdate.IsActive;
+            appUser.IsAdmin = userToUpdate.IsAdmin;
+
             await context.SaveChangesAsync();
         }
     }

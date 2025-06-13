@@ -4,12 +4,12 @@
 @inject IToastService ToastService
 @using Microsoft.FluentUI.AspNetCore.Components
 @using UPortal.Dtos
+@using UPortal.Components.Pages.Admin 
 
 <PageTitle>Users</PageTitle>
 
 <FluentStack VerticalAlignment="VerticalAlignment.Center" HorizontalGap="10">
     <h1>Users Administration</h1>
-    @* No "Add User" button as per requirements *@
 </FluentStack>
 
 @if (users is null)
@@ -25,12 +25,11 @@ else
                     GridTemplateColumns="0.5fr 2fr 2fr 1fr 1fr 1fr" TGridItem="AppUserDto">
         <PropertyColumn Property="@(dto => dto.Id)" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.Name)" Sortable="true" />
-        <PropertyColumn Property="@(dto => dto.AzureAdObjectId)" Title="Azure AD Object ID" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.IsAdmin)" Title="Admin" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.IsActive)" Title="Active" Sortable="true" />
 
         <TemplateColumn Title="Actions" Align="Align.End">
-            <FluentButton IconStart="@(new Icons.Regular.Size16.Edit())" Title="Toggle Active Status" OnClick="@(() => ToggleUserStatusAsync(context))"></FluentButton>
+            <FluentButton IconStart="@(new Icons.Regular.Size16.Edit())" Title="Edit User" OnClick="@(() => OpenEditUserDialogAsync(context))"></FluentButton>
         </TemplateColumn>
     </FluentDataGrid>
 
@@ -49,30 +48,39 @@ else
     private async Task RefreshGridDataAsync()
     {
         users = await AppUserService.GetAllAsync();
-        users = users.OrderBy(u => u.Name).ToList(); // Optional: client-side sort if not done by service
+        users = users.OrderBy(u => u.Name).ToList();
         StateHasChanged();
     }
 
-    private async Task ToggleUserStatusAsync(AppUserDto userToUpdate)
+    private async Task OpenEditUserDialogAsync(AppUserDto userToEdit)
     {
-        // Optional: Confirmation Dialog
-        var dialog = await DialogService.ShowConfirmationAsync(
-            $"Are you sure you want to change status for '{userToUpdate.Name}' to '{(!userToUpdate.IsActive ? "Active" : "Inactive")}'?",
-            "Yes, change", "No, cancel", "Confirm Status Change");
+        var userToUpdate = new UpdateAppUserDto
+        {
+            IsActive = userToEdit.IsActive,
+            IsAdmin = userToEdit.IsAdmin
+        };
+
+        var dialog = await DialogService.ShowDialogAsync<AppUserDialog>(userToUpdate, new DialogParameters()
+        {
+            Title = $"Edit User",
+            PreventDismissOnOverlayClick = true,
+            PreventScroll = true
+        });
 
         var result = await dialog.Result;
 
-        if (!result.Cancelled)
+        if (!result.Cancelled && result.Data is not null)
         {
+            var updatedUser = (UpdateAppUserDto)result.Data;
             try
             {
-                await AppUserService.UpdateUserStatusAsync(userToUpdate.Id, !userToUpdate.IsActive);
-                ToastService.ShowSuccess($"User '{userToUpdate.Name}' status updated successfully to {(!userToUpdate.IsActive ? "Active" : "Inactive")}."); // Corrected message
+                await AppUserService.UpdateAppUserAsync(userToEdit.Id, updatedUser);
+                ToastService.ShowSuccess($"User '{userToEdit.Name}' was updated successfully.");
                 await RefreshGridDataAsync();
             }
             catch (Exception ex)
             {
-                ToastService.ShowError($"Failed to update user status: {ex.Message}");
+                ToastService.ShowError($"Failed to update user: {ex.Message}");
             }
         }
     }
