@@ -6,6 +6,7 @@ using Microsoft.FluentUI.AspNetCore.Components;
 using UPortal.Components;
 using UPortal.Data;
 using UPortal.Services;
+using UPortal.HelperServices;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -45,6 +46,7 @@ builder.Services.AddScoped<ILocationService, LocationService>();
 builder.Services.AddScoped<IMachineService, MachineService>();
 builder.Services.AddScoped<IAppUserService, AppUserService>();
 builder.Services.AddScoped<IExternalApplicationService, ExternalApplicationService>(); // Ensure this is present once
+builder.Services.AddSingleton<IIconService, IconService>();
 
 var app = builder.Build();
 

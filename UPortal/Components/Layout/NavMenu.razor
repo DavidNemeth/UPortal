@@ -5,19 +5,19 @@
 
 <FluentNavMenu Id="main-nav" Collapsible="true" Width="250" Title="Navigation menu" AriaLabel="Main navigation menu">
     <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size24.Home())" IconColor="Color.Accent">Home</FluentNavLink>
-    <FluentNavGroup Title="Applications" Icon="@(new Icons.Regular.Size24.Apps())" Gap="10px">
+    <FluentNavGroup Title="Applications" Icon="@(new Icons.Regular.Size24.Apps())">
         @if (_externalApplications != null)
         {
 
             @foreach (var app in _externalApplications)
             {
-                <FluentNavLink Href="@($"/app/{app.Id}")" Icon="@(GetIconInstance(app.IconName))" IconColor="Color.Accent">
+                <FluentNavLink Href="@($"/app/{app.Id}")" Icon="@(IconService.GetIcon(app.IconName))" IconColor="Color.Accent">
                     @app.AppName
                 </FluentNavLink>
             }
         }
     </FluentNavGroup>
-    <FluentNavGroup Title="Admin" Icon="@(new Icons.Regular.Size24.PersonAlert())" Gap="10px">
+    <FluentNavGroup Title="Admin" Icon="@(new Icons.Regular.Size24.PersonAlert())">
         <FluentNavLink Href="/admin/locations" Icon="@(new Icons.Regular.Size24.Building())" IconColor="Color.Accent">Locations</FluentNavLink>
         <FluentNavLink Href="/admin/machines" Icon="@(new Icons.Regular.Size24.Desktop())" IconColor="Color.Accent">Machines</FluentNavLink>
     </FluentNavGroup>
@@ -40,28 +40,6 @@
     {
         _externalApplications = await ExternalAppService.GetAllAsync();
         StateHasChanged();
-    }
-
-    // Helper to get Icon instance - this should be centralized or made consistent
-    // This is a simplified version. Ensure it aligns with other components.
-    private Icon GetIconInstance(string iconFullName)
-    {
-        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size24.Question();
-
-        return iconFullName switch
-        {
-            "Home" => new Icons.Regular.Size24.Home(),
-            "AppFolder" => new Icons.Regular.Size24.AppFolder(),
-            "Link" => new Icons.Regular.Size24.Link(),
-            "Globe" => new Icons.Regular.Size24.Globe(),
-            "Settings" => new Icons.Regular.Size24.Settings(),
-            "Mail" => new Icons.Regular.Size24.Mail(),
-            "CalendarLtr" => new Icons.Regular.Size24.CalendarLtr(),
-            "Document" => new Icons.Regular.Size24.Document(),
-            "Heart" => new Icons.Regular.Size24.Heart(),
-            "Star" => new Icons.Regular.Size24.Star(),
-            _ => new Icons.Regular.Size24.Question(), // Default for unknown icons
-        };
     }
 
     // This method could be used if we implement IDisposable and subscribe to a service event

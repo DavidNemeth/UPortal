@@ -1,29 +1,29 @@
 @page "/app/{AppId:int}"
 @inject IExternalApplicationService ExternalAppService
 @inject NavigationManager NavigationManager
+@inject IJSRuntime JSRuntime
 @using UPortal.Dtos
 
-<PageTitle>@(_application?.AppName ?? "External Application")</PageTitle>
+<div style="margin-bottom: 10px; margin-top: 10px;">
+    <FluentButton IconStart="@(new Icons.Regular.Size24.ArrowHookUpLeft())" Appearance="Appearance.Stealth" OnClick="GoBackAsync">Navigate Back</FluentButton>
+</div>
 
-@if (_application == null && _isLoading)
+@if (application == null && isLoading)
 {
     <p><em>Loading application details...</em></p>
     <FluentProgressRing />
 }
-else if (_application == null && !_isLoading)
+else if (application == null && !isLoading)
 {
-    <FluentMessageBox Intent="MessageBoxIntent.Error" Title="Error" Style="width: 100%;">
+    <FluentMessageBar Intent="MessageIntent.Error" Title="Error" Style="width: 100%;">
         Application not found or could not be loaded.
         <FluentButton Appearance="Appearance.Accent" OnClick="@(() => NavigationManager.NavigateTo("/"))">Go to Dashboard</FluentButton>
-    </FluentMessageBox>
+    </FluentMessageBar>
 }
-else if (_application != null)
+else if (application != null)
 {
-    <h1>@_application.AppName</h1>
-    <p>Viewing: <a href="@_application.AppUrl" target="_blank">@_application.AppUrl</a></p>
-
-    <div style="width: 100%; height: calc(100vh - 200px); border: 1px solid #ccc;">
-        <iframe src="@_application.AppUrl" style="width: 100%; height: 100%; border: none;" sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
+    <div style="width: 100%; height: calc(100vh - 200px);">
+        <iframe src="@application.AppUrl" style="width: 100%; height: 100%; border: none;" allow="autoplay; encrypted-media" allowfullscreen sandbox="allow-scripts allow-same-origin allow-popups allow-forms"></iframe>
     </div>
 }
 
@@ -31,21 +31,41 @@ else if (_application != null)
     [Parameter]
     public int AppId { get; set; }
 
-    private ExternalApplicationDto? _application;
-    private bool _isLoading = true;
+    private ExternalApplicationDto application;
+    private bool isLoading = true;
 
+    private async Task GoBackAsync()
+    {
+        await JSRuntime.InvokeVoidAsync("history.back");
+    }
+
+    /// <summary>
+    /// Lifecycle method called when parameters are set.
+    /// Fetches the application details based on <see cref="ApplicationId"/>.
+    /// </summary>
     protected override async Task OnParametersSetAsync()
     {
-        _isLoading = true;
-        // It's generally better to fetch by ID from the service to ensure data consistency
-        // and not rely solely on parameters passed around (which could be stale or manipulated).
-        _application = await ExternalAppService.GetByIdAsync(AppId);
-        _isLoading = false;
-
-        if (_application == null)
+        isLoading = true;
+        try
         {
-            // Optional: Log this occurrence or handle more gracefully
-            Console.WriteLine($"External application with ID {AppId} not found.");
+            // Fetch application details from the service using the provided ApplicationId.
+            application = await ExternalAppService.GetByIdAsync(AppId);
+        }
+        catch (Exception ex)
+        {
+            // Log any exceptions that occur during data fetching.
+            // In a real application, this might involve more sophisticated logging to a centralized system.
+            Console.WriteLine($"Error loading application with ID {AppId}: {ex.Message}");
+            application = null; // Ensure application is null if an error occurs to show appropriate UI.
+        }
+        finally
+        {
+            // Ensure loading indicator is turned off regardless of success or failure.
+            isLoading = false;
         }
     }
+
+    // Placeholder class for IStringLocalizer<ExternalAppViewerStrings>
+    // This enables localization for strings used within this component.
+    public class ExternalAppViewerStrings { }
 }

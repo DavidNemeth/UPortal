@@ -43,7 +43,7 @@ else
                                   Style="position: absolute; top: 5px; right: 5px; z-index: 1; --button-icon-size: 16px; padding: 4px; min-width: auto;"
                                   Title="Delete Application" />
                     <FluentCard Height="120px" @onclick="@(() => NavigateToAppView(app.Id))" class="fluent-card">
-                        <FluentIcon Value="@(GetIconInstance(app.IconName))" class="fluent-icon" />
+                        <FluentIcon Value="@(IconService.GetIcon(app.IconName, IconSize.Size32))" class="fluent-icon" />
                         <div style="margin-top: 10px;font-weight: 600;">
                             @app.AppName
                         </div>
@@ -145,26 +145,5 @@ else
                 // Log the exception ex
             }
         }
-    }
-
-    // Basic icon instance resolver (can be expanded or moved to a helper class)
-    private Icon GetIconInstance(string iconFullName)
-    {
-        if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size32.Question();
-
-        return iconFullName switch
-        {
-            "Home" => new Icons.Regular.Size32.Home(),
-            "AppFolder" => new Icons.Regular.Size32.AppFolder(),
-            "Link" => new Icons.Regular.Size32.Link(),
-            "Globe" => new Icons.Regular.Size32.Globe(),
-            "Settings" => new Icons.Regular.Size32.Settings(),
-            "Mail" => new Icons.Regular.Size32.Mail(),
-            "CalendarLtr" => new Icons.Regular.Size32.CalendarLtr(),
-            "Document" => new Icons.Regular.Size32.Document(),
-            "Heart" => new Icons.Regular.Size32.Heart(),
-            "Star" => new Icons.Regular.Size32.Star(),
-            _ => new Icons.Regular.Size32.Question(), // Default for unknown icons
-        };
     }
 }
