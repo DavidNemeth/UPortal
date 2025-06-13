@@ -34,22 +34,31 @@ try // Main try-catch block for application startup.
     // This makes Serilog the logging provider for the application.
     builder.Host.UseSerilog();
 
-    // Add services to the container.
+    // Configure forwarded headers to handle HTTPS termination from a reverse proxy
+    builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    {
+        options.ForwardedHeaders =
+            Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor |
+            Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto;
+    });
+
     // Configure authentication with Azure AD using OpenID Connect.
-    builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-        .AddCookie(options =>
-        {
-            options.Cookie.Name = ".Auth.UPortal";
-            options.Cookie.HttpOnly = true;
-            options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Requires HTTPS
-            options.Cookie.SameSite = SameSiteMode.Lax;
-            options.LoginPath = "/MicrosoftIdentity/Account/SignIn";
-            options.LogoutPath = "/MicrosoftIdentity/Account/SignOut";
-            options.AccessDeniedPath = "/MicrosoftIdentity/Account/AccessDenied";
-            // Read domain from configuration
-            options.Cookie.Domain = builder.Configuration["CookieSettings:Domain"];
-        })
-        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"), OpenIdConnectDefaults.AuthenticationScheme, "AzureAd");
+    // Let AddMicrosoftIdentityWebApp handle the primary setup, including adding the cookie handler.
+    builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+
+    // Now, configure the cookie settings that AddMicrosoftIdentityWebApp created.
+    // This is the correct way to customize the cookie without causing conflicts.
+    builder.Services.Configure<CookieAuthenticationOptions>(CookieAuthenticationDefaults.AuthenticationScheme, options =>
+    {
+        options.Cookie.Name = ".Auth.UPortal";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Requires HTTPS
+        options.Cookie.SameSite = SameSiteMode.Lax;
+
+        // Read domain from configuration
+        options.Cookie.Domain = builder.Configuration["CookieSettings:Domain"];
+    });
 
     // Configure Data Protection
     builder.Services.AddDataProtection()
@@ -91,14 +100,19 @@ try // Main try-catch block for application startup.
     // Configure authorization policies.
     builder.Services.AddAuthorization(options =>
     {
-        // FallbackPolicy ensures that any request not matching a specific authorization policy
-        // will fall back to the DefaultPolicy (which usually requires an authenticated user).
-        // This is a common setup to protect the application by default.
-        options.FallbackPolicy = options.DefaultPolicy;
+        // The FallbackPolicy is removed.
+        // You can add other specific policies here in the future if needed.
     });
 
     // Add Razor Pages services and Microsoft Identity UI for handling authentication-related UI (login, logout pages).
-    builder.Services.AddRazorPages().AddMicrosoftIdentityUI();
+    builder.Services.AddRazorPages()
+     .AddMicrosoftIdentityUI()
+     .AddRazorPagesOptions(options =>
+     {
+         // This convention allows anonymous access to all pages in the /Account/ folder 
+         // within the MicrosoftIdentity area, which is where Login, Logout, etc. are.
+         options.Conventions.AllowAnonymousToAreaFolder("MicrosoftIdentity", "/Account");
+     });
 
     // Configure Entity Framework Core DbContext.
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -109,7 +123,7 @@ try // Main try-catch block for application startup.
     // Add Blazor Server components and enable interactive server-side rendering.
     builder.Services.AddRazorComponents()
         .AddInteractiveServerComponents();
-
+    builder.Services.AddControllers();
     // Add Fluent UI Blazor components.
     builder.Services.AddFluentUIComponents();
     // Add HttpClient for making HTTP requests.
@@ -135,40 +149,6 @@ try // Main try-catch block for application startup.
         {
             c.IncludeXmlComments(xmlPath);
         }
-
-        // Optional: Add security definitions for Azure AD (JWT Bearer)
-        // This helps Swagger UI to send the token correctly.
-        // Commenting out the existing OAuth2 security definition as per requirements.
-        /*
-        c.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
-        {
-            Type = SecuritySchemeType.OAuth2,
-            Flows = new OpenApiOAuth2Flows
-            {
-                Implicit = new OpenApiOAuth2Flow // Or AuthorizationCode, depending on your Azure AD setup for APIs
-                {
-                    AuthorizationUrl = new Uri($"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/oauth2/v2.0/authorize"),
-                    TokenUrl = new Uri($"https://login.microsoftonline.com/{builder.Configuration["AzureAd:TenantId"]}/oauth2/v2.0/token"),
-                    Scopes = new Dictionary<string, string>
-                    {
-                        // Define scopes your API expects, e.g., "api://<your-api-client-id>/access_as_user"
-                        // These need to match the scopes defined in Azure AD for your application.
-                        // Example: { "api://your-client-id/user_impersonation", "Access UPortal API" }
-                    }
-                }
-            }
-        });
-        c.AddSecurityRequirement(new OpenApiSecurityRequirement
-        {
-            {
-                new OpenApiSecurityScheme
-                {
-                    Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "oauth2" }
-                },
-                new[] { /* list required scopes here, e.g., "api://your-client-id/user_impersonation" */ }
-            }
-        });
-        */
 
         // Add Cookie Authentication Security Definition
         c.AddSecurityDefinition("CookieAuth", new OpenApiSecurityScheme
@@ -215,12 +195,15 @@ try // Main try-catch block for application startup.
                               else
                               {
                                   var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
-                                  if (allowedOrigins != null && allowedOrigins.Length > 0) {
+                                  if (allowedOrigins != null && allowedOrigins.Length > 0)
+                                  {
                                       policy.WithOrigins(allowedOrigins)
                                             .AllowAnyHeader()
                                             .AllowAnyMethod()
                                             .AllowCredentials();
-                                  } else {
+                                  }
+                                  else
+                                  {
                                       policy.WithOrigins("https://uportal.yourcompany.com") // Placeholder
                                             .AllowAnyHeader()
                                             .AllowAnyMethod()
@@ -232,6 +215,8 @@ try // Main try-catch block for application startup.
     });
 
     var app = builder.Build();
+    // This must be one of the first middleware components to run.
+    app.UseForwardedHeaders();
 
     // Seed initial data into the database. This is often done at startup.
     await DataSeeder.SeedAsync(app);
@@ -246,19 +231,19 @@ try // Main try-catch block for application startup.
         // The default HSTS value is 30 days. Consider adjusting for production.
         app.UseHsts();
     }
-  else // Development environment specific configurations
-  {
-    Log.Information("Configuring development environment settings.");
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
+    else // Development environment specific configurations
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "UPortal API V1");
-        // Optional: Configure OAuth2 for Swagger UI
-        // c.OAuthClientId(builder.Configuration["AzureAd:ClientId"]); // Client ID of this API registration or a dedicated Swagger UI client
-        // c.OAuthAppName("UPortal API - Swagger UI");
-        // c.OAuthUsePkce(); // If using PKCE
-    });
-  }
+        Log.Information("Configuring development environment settings.");
+        app.UseSwagger();
+        app.UseSwaggerUI(c =>
+        {
+            c.SwaggerEndpoint("/swagger/v1/swagger.json", "UPortal API V1");
+            // Optional: Configure OAuth2 for Swagger UI
+            // c.OAuthClientId(builder.Configuration["AzureAd:ClientId"]); // Client ID of this API registration or a dedicated Swagger UI client
+            // c.OAuthAppName("UPortal API - Swagger UI");
+            // c.OAuthUsePkce(); // If using PKCE
+        });
+    }
 
     // Redirect HTTP requests to HTTPS.
     app.UseHttpsRedirection();
@@ -276,8 +261,10 @@ try // Main try-catch block for application startup.
 
     // Map Blazor components to endpoints, enabling interactive server-side rendering for the main 'App' component.
     app.MapRazorComponents<App>()
-        .AddInteractiveServerRenderMode();
+        .AddInteractiveServerRenderMode()
+        .RequireAuthorization();
 
+    app.MapControllers();
     // Start the application.
     app.Run();
 }

@@ -1,13 +1,8 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Authorization; // Required for [Authorize]
-using UPortal.Services; // For IAppUserService, IMachineService, ILocationService
-using UPortal.Dtos; // For AppUserDto, MachineDto, LocationDto
-using System.Threading.Tasks; // For Task
-using System.Security.Claims; // For ClaimsPrincipal and accessing user claims
-using Microsoft.Extensions.Logging; // For ILogger
-using System.Linq; // For .Where()
-using System.Collections.Generic; // For List<T>
-using System; // For Exception
+using Microsoft.AspNetCore.Authorization; 
+using UPortal.Services; 
+using UPortal.Dtos; 
+using System.Security.Claims; 
 
 namespace UPortal.Controllers
 {
@@ -49,7 +44,7 @@ namespace UPortal.Controllers
         [HttpGet("me")]
         public async Task<IActionResult> GetCurrentUser()
         {
-            var azureAdObjectId = User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("http://schemas.microsoft.com/identity/claims/objectidentifier");
+            var azureAdObjectId = User.FindFirstValue("http://schemas.microsoft.com/identity/claims/objectidentifier");
 
             if (string.IsNullOrEmpty(azureAdObjectId))
             {
