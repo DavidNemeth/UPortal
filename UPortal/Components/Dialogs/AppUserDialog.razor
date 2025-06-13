@@ -16,22 +16,34 @@
 <FluentDialogBody>
     <EditForm EditContext="@_editContext">
         <DataAnnotationsValidator />
+        <FluentStack Orientation="Orientation.Vertical">
+            @if (locations is not null)
+            {
+                <FluentSelect Label="Location"
+                              Value="@Content.LocationId.ToString()"
+                              ValueChanged="@OnLocationChanged"
+                              TOption="string"
+                              Required="true"
+                              Height="250px">
+                    @* Generating options manually gives more control *@
+                    @foreach (var location in locations)
+                    {
+                        <FluentOption Value="@location.Id.ToString()">@location.Name</FluentOption>
+                    }
+                </FluentSelect>
+            }
+            else
+            {
+                <p><em>Loading locations...</em></p>
+            }
+        </FluentStack>
+        <FluentDivider Style="margin-top: 1rem; margin-bottom: 1rem;"></FluentDivider>
         <FluentStack Orientation="Orientation.Horizontal">
             <FluentSwitch Name="Active" @bind-Value="@Content.IsActive" Label="Active">
             </FluentSwitch>
             <FluentSwitch Name="Admin" @bind-Value="@Content.IsAdmin" Label="Admin">
             </FluentSwitch>
         </FluentStack>
-        <FluentSelect TOption="int?" Id="user-location-select" Label="Location" @bind-Value="@Content.LocationId" Class="mb-3">
-            <FluentOption Value="0">Select location...</FluentOption> <!-- Assuming 0 is not a valid LocationId -->
-            @if (_locations != null)
-            {
-                foreach (var location in _locations)
-                {
-                    <FluentOption Value="@location.Id">@location.Name</FluentOption>
-                }
-            }
-        </FluentSelect>
     </EditForm>
 </FluentDialogBody>
 
@@ -46,7 +58,7 @@
 
 @code {
     private EditContext _editContext = default!;
-    private List<LocationDto>? _locations;
+    private List<LocationDto> locations;
 
     [CascadingParameter]
     public FluentDialog Dialog { get; set; } = default!;
@@ -66,12 +78,21 @@
         _editContext = new EditContext(Content);
         try
         {
-            _locations = await LocationService.GetAllAsync();
+            locations = await LocationService.GetAllAsync();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error fetching locations.");
-            _locations = new List<LocationDto>(); // Ensure _locations is not null
+            locations = new List<LocationDto>(); // Ensure _locations is not null
+        }
+    }
+
+    private void OnLocationChanged(string? newLocationId)
+    {
+        if (int.TryParse(newLocationId, out var id) && id > 0)
+        {
+            Content.LocationId = id;
+            _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.LocationId));
         }
     }
 
