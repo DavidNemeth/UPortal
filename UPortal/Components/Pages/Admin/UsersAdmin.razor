@@ -22,9 +22,10 @@ else
     <FluentDataGrid Pagination="@pagination"
                     RowSize="@DataGridRowSize.Medium"
                     Items="@users.AsQueryable()"
-                    GridTemplateColumns="0.5fr 2fr 2fr 1fr 1fr 1fr" TGridItem="AppUserDto">
+                    GridTemplateColumns="0.5fr 2fr 2fr 1fr 1fr 1fr 1fr" TGridItem="AppUserDto">
         <PropertyColumn Property="@(dto => dto.Id)" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.Name)" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.LocationName)" Title="Location" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.IsAdmin)" Title="Admin" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.IsActive)" Title="Active" Sortable="true" />
 
@@ -57,7 +58,8 @@ else
         var userToUpdate = new UpdateAppUserDto
         {
             IsActive = userToEdit.IsActive,
-            IsAdmin = userToEdit.IsAdmin
+            IsAdmin = userToEdit.IsAdmin,
+            LocationId = userToEdit.LocationId // Add LocationId
         };
 
         var dialog = await DialogService.ShowDialogAsync<AppUserDialog>(userToUpdate, new DialogParameters()

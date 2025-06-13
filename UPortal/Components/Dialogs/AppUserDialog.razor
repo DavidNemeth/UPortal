@@ -1,6 +1,8 @@
 ﻿@using UPortal.Dtos
 @using System.ComponentModel.DataAnnotations
 @implements IDialogContentComponent<UpdateAppUserDto>
+@inject UPortal.Services.ILocationService LocationService
+@inject ILogger<AppUserDialog> Logger
 
 <FluentDialogHeader ShowDismiss="true">
     <FluentStack VerticalAlignment="VerticalAlignment.Center">
@@ -20,6 +22,16 @@
             <FluentSwitch Name="Admin" @bind-Value="@Content.IsAdmin" Label="Admin">
             </FluentSwitch>
         </FluentStack>
+        <FluentSelect TOption="int?" Id="user-location-select" Label="Location" @bind-Value="@Content.LocationId" Class="mb-3">
+            <FluentOption Value="0">Select location...</FluentOption> <!-- Assuming 0 is not a valid LocationId -->
+            @if (_locations != null)
+            {
+                foreach (var location in _locations)
+                {
+                    <FluentOption Value="@location.Id">@location.Name</FluentOption>
+                }
+            }
+        </FluentSelect>
     </EditForm>
 </FluentDialogBody>
 
@@ -34,6 +46,7 @@
 
 @code {
     private EditContext _editContext = default!;
+    private List<LocationDto>? _locations;
 
     [CascadingParameter]
     public FluentDialog Dialog { get; set; } = default!;
@@ -48,9 +61,18 @@
     public string AzureAdObjectId { get; set; } = string.Empty;
 
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         _editContext = new EditContext(Content);
+        try
+        {
+            _locations = await LocationService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error fetching locations.");
+            _locations = new List<LocationDto>(); // Ensure _locations is not null
+        }
     }
 
     private async Task SaveAsync()

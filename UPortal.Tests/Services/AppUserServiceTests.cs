@@ -207,21 +207,33 @@ namespace UPortal.Tests.Services
         }
 
         [TestMethod]
-        public async Task UpdateUserStatusAsync_UserExists_UpdatesIsActive()
+        public async Task UpdateAppUserAsync_UserExists_UpdatesPropertiesIncludingLocationId()
         {
             // Arrange
             var userId = 1;
+            var initialLocationId = 10;
+            var updatedLocationId = 20;
+
             using (var context = CreateContext())
             {
-                // Ensure Id is explicitly set for FindAsync to work as expected with InMemory
-                var user = new AppUser { Id = userId, Name = "Test User", AzureAdObjectId = "updateTest", IsActive = true, LocationId = 1 };
+                context.Locations.AddRange(
+                    new Location { Id = initialLocationId, Name = "Initial Location" },
+                    new Location { Id = updatedLocationId, Name = "Updated Location" }
+                );
+                var user = new AppUser { Id = userId, Name = "Test User", AzureAdObjectId = "updateTest", IsActive = true, IsAdmin = false, LocationId = initialLocationId };
                 context.AppUsers.Add(user);
                 await context.SaveChangesAsync();
             }
             var service = new AppUserService(_mockDbContextFactory.Object);
+            var dto = new UpdateAppUserDto
+            {
+                IsActive = false,
+                IsAdmin = true,
+                LocationId = updatedLocationId
+            };
 
             // Act
-            await service.UpdateUserStatusAsync(userId, false);
+            await service.UpdateAppUserAsync(userId, dto);
 
             // Assert
             using (var context = CreateContext())
@@ -229,18 +241,21 @@ namespace UPortal.Tests.Services
                 var updatedUser = await context.AppUsers.FindAsync(userId);
                 Assert.IsNotNull(updatedUser);
                 Assert.IsFalse(updatedUser.IsActive);
+                Assert.IsTrue(updatedUser.IsAdmin);
+                Assert.AreEqual(updatedLocationId, updatedUser.LocationId);
             }
         }
 
         [TestMethod]
         [ExpectedException(typeof(KeyNotFoundException))]
-        public async Task UpdateUserStatusAsync_UserDoesNotExist_ThrowsKeyNotFoundException()
+        public async Task UpdateAppUserAsync_UserDoesNotExist_ThrowsKeyNotFoundException()
         {
             // Arrange
             var service = new AppUserService(_mockDbContextFactory.Object);
+            var dto = new UpdateAppUserDto { IsActive = true, IsAdmin = false, LocationId = 1 };
 
             // Act
-            await service.UpdateUserStatusAsync(999, false); // Non-existent user ID
+            await service.UpdateAppUserAsync(999, dto); // Non-existent user ID
         }
 
         [TestMethod]
@@ -275,6 +290,193 @@ namespace UPortal.Tests.Services
             Assert.AreEqual("idB", userB.AzureAdObjectId);
             Assert.IsTrue(userB.IsAdmin);
             Assert.IsFalse(userB.IsActive);
+        }
+
+        [TestMethod]
+        public async Task GetAllAsync_WithLocations_PopulatesLocationDetails()
+        {
+            // Arrange
+            using (var context = CreateContext())
+            {
+                context.Locations.AddRange(
+                    new Location { Id = 1, Name = "Location A" },
+                    new Location { Id = 2, Name = "Location B" }
+                );
+                context.AppUsers.AddRange(
+                    new AppUser { Name = "User With Loc", AzureAdObjectId = "id1", LocationId = 1 },
+                    new AppUser { Name = "User Without Loc", AzureAdObjectId = "id2", LocationId = 0 }, // Assuming 0 or null means no location
+                    new AppUser { Name = "User With Invalid Loc", AzureAdObjectId = "id3", LocationId = 99 } // Non-existent LocationId
+                );
+                await context.SaveChangesAsync();
+            }
+            var service = new AppUserService(_mockDbContextFactory.Object);
+
+            // Act
+            var results = await service.GetAllAsync();
+
+            // Assert
+            Assert.IsNotNull(results);
+            Assert.AreEqual(3, results.Count);
+
+            var userWithLoc = results.FirstOrDefault(u => u.Name == "User With Loc");
+            Assert.IsNotNull(userWithLoc);
+            Assert.AreEqual(1, userWithLoc.LocationId);
+            Assert.AreEqual("Location A", userWithLoc.LocationName);
+
+            var userWithoutLoc = results.FirstOrDefault(u => u.Name == "User Without Loc");
+            Assert.IsNotNull(userWithoutLoc);
+            Assert.AreEqual(0, userWithoutLoc.LocationId);
+            Assert.AreEqual(string.Empty, userWithoutLoc.LocationName); // Expect empty string for no/invalid location
+
+            var userWithInvalidLoc = results.FirstOrDefault(u => u.Name == "User With Invalid Loc");
+            Assert.IsNotNull(userWithInvalidLoc);
+            Assert.AreEqual(99, userWithInvalidLoc.LocationId);
+            Assert.AreEqual(string.Empty, userWithInvalidLoc.LocationName); // Expect empty string
+        }
+
+        [TestMethod]
+        public async Task GetByAzureAdObjectIdAsync_WithLocation_PopulatesLocationDetails()
+        {
+            // Arrange
+            var azureIdWithLoc = "userWithLocation";
+            var azureIdNoLoc = "userWithoutLocation";
+            var azureIdInvalidLoc = "userWithInvalidLocation";
+
+            using (var context = CreateContext())
+            {
+                context.Locations.Add(new Location { Id = 1, Name = "Test Location" });
+                context.AppUsers.AddRange(
+                    new AppUser { AzureAdObjectId = azureIdWithLoc, Name = "User With Loc", LocationId = 1 },
+                    new AppUser { AzureAdObjectId = azureIdNoLoc, Name = "User No Loc", LocationId = 0 },
+                    new AppUser { AzureAdObjectId = azureIdInvalidLoc, Name = "User Invalid Loc", LocationId = 99 }
+                );
+                await context.SaveChangesAsync();
+            }
+            var service = new AppUserService(_mockDbContextFactory.Object);
+
+            // Act
+            var resultWithLoc = await service.GetByAzureAdObjectIdAsync(azureIdWithLoc);
+            var resultNoLoc = await service.GetByAzureAdObjectIdAsync(azureIdNoLoc);
+            var resultInvalidLoc = await service.GetByAzureAdObjectIdAsync(azureIdInvalidLoc);
+
+            // Assert
+            Assert.IsNotNull(resultWithLoc);
+            Assert.AreEqual(1, resultWithLoc.LocationId);
+            Assert.AreEqual("Test Location", resultWithLoc.LocationName);
+
+            Assert.IsNotNull(resultNoLoc);
+            Assert.AreEqual(0, resultNoLoc.LocationId);
+            Assert.AreEqual(string.Empty, resultNoLoc.LocationName);
+
+            Assert.IsNotNull(resultInvalidLoc);
+            Assert.AreEqual(99, resultInvalidLoc.LocationId);
+            Assert.AreEqual(string.Empty, resultInvalidLoc.LocationName);
+        }
+
+        [TestMethod]
+        public async Task CreateOrUpdateUserFromAzureAdAsync_NewUser_PopulatesDefaultLocation()
+        {
+            // Arrange
+            var azureId = "newUserWithDefaultLoc";
+            var userName = "New User Default Loc";
+            var claims = new List<Claim>
+            {
+                new Claim("http://schemas.microsoft.com/identity/claims/objectidentifier", azureId),
+                new Claim(ClaimTypes.Name, userName)
+            };
+            var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
+
+            using (var context = CreateContext())
+            {
+                context.Locations.Add(new Location { Id = 1, Name = "Default Location" });
+                await context.SaveChangesAsync();
+            }
+            var service = new AppUserService(_mockDbContextFactory.Object);
+
+            // Act
+            var resultDto = await service.CreateOrUpdateUserFromAzureAdAsync(userPrincipal);
+
+            // Assert
+            Assert.IsNotNull(resultDto);
+            Assert.AreEqual(userName, resultDto.Name);
+            Assert.AreEqual(azureId, resultDto.AzureAdObjectId);
+            Assert.AreEqual(1, resultDto.LocationId); // Default LocationId
+            Assert.AreEqual("Default Location", resultDto.LocationName);
+
+            using (var context = CreateContext())
+            {
+                var dbUser = await context.AppUsers.Include(u => u.Location).FirstOrDefaultAsync(u => u.AzureAdObjectId == azureId);
+                Assert.IsNotNull(dbUser);
+                Assert.AreEqual(1, dbUser.LocationId);
+                Assert.IsNotNull(dbUser.Location);
+                Assert.AreEqual("Default Location", dbUser.Location.Name);
+            }
+        }
+
+        [TestMethod]
+        public async Task CreateOrUpdateUserFromAzureAdAsync_NewUser_NoDefaultLocationExists_LocationNameIsEmpty()
+        {
+            // Arrange
+            var azureId = "newUserNoDefaultLoc";
+            var userName = "New User No Default Loc";
+            var claims = new List<Claim>
+            {
+                new Claim("http://schemas.microsoft.com/identity/claims/objectidentifier", azureId),
+                new Claim(ClaimTypes.Name, userName)
+            };
+            var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
+            // No locations added to the database for this test
+
+            var service = new AppUserService(_mockDbContextFactory.Object);
+
+            // Act
+            var resultDto = await service.CreateOrUpdateUserFromAzureAdAsync(userPrincipal);
+
+            // Assert
+            Assert.IsNotNull(resultDto);
+            Assert.AreEqual(1, resultDto.LocationId); // Still defaults to LocationId = 1
+            Assert.AreEqual(string.Empty, resultDto.LocationName); // But name is empty as location doesn't exist
+
+            using (var context = CreateContext())
+            {
+                var dbUser = await context.AppUsers.FirstOrDefaultAsync(u => u.AzureAdObjectId == azureId);
+                Assert.IsNotNull(dbUser);
+                Assert.AreEqual(1, dbUser.LocationId);
+            }
+        }
+
+        [TestMethod]
+        public async Task CreateOrUpdateUserFromAzureAdAsync_ExistingUserWithLocation_PopulatesLocationDetails()
+        {
+            // Arrange
+            var azureId = "existingUserWithLoc";
+            var userName = "Existing User";
+            var claims = new List<Claim>
+            {
+                new Claim("http://schemas.microsoft.com/identity/claims/objectidentifier", azureId),
+                new Claim(ClaimTypes.Name, userName)
+            };
+            var userPrincipal = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuthType"));
+
+            using (var context = CreateContext())
+            {
+                context.Locations.Add(new Location { Id = 7, Name = "Assigned Location" });
+                context.AppUsers.Add(new AppUser {
+                    AzureAdObjectId = azureId,
+                    Name = userName,
+                    LocationId = 7 // Pre-existing location
+                });
+                await context.SaveChangesAsync();
+            }
+            var service = new AppUserService(_mockDbContextFactory.Object);
+
+            // Act
+            var resultDto = await service.CreateOrUpdateUserFromAzureAdAsync(userPrincipal);
+
+            // Assert
+            Assert.IsNotNull(resultDto);
+            Assert.AreEqual(7, resultDto.LocationId);
+            Assert.AreEqual("Assigned Location", resultDto.LocationName);
         }
     }
 }
