@@ -1,5 +1,6 @@
 ﻿@using System.ComponentModel.DataAnnotations
 @implements IDialogContentComponent<CreateLocationDto>
+@inject ILogger<LocationDialog> _logger
 
 @* This component uses the CreateLocationDto as its content model *@
 
@@ -37,27 +38,60 @@
 
 @code
 {
+    /// <summary>
+    /// The current <see cref="EditContext"/> for the form.
+    /// </summary>
     private EditContext _editContext = default!;
 
+    /// <summary>
+    /// Gets or sets the cascading <see cref="FluentDialog"/> instance.
+    /// </summary>
     [CascadingParameter]
     public FluentDialog Dialog { get; set; } = default!;
 
+    /// <summary>
+    /// Gets or sets the content of the dialog, which is a <see cref="CreateLocationDto"/> object.
+    /// This object is bound to the form field for the location name.
+    /// </summary>
     [Parameter]
     public CreateLocationDto Content { get; set; } = default!;
 
+    /// <summary>
+    /// Initializes the dialog by creating an <see cref="EditContext"/> for the form.
+    /// </summary>
     protected override void OnInitialized()
     {
-        _editContext = new EditContext(Content);
+        _logger.LogInformation("LocationDialog initializing for location: {LocationName}", Content?.Name ?? "New Location");
+        _editContext = new EditContext(Content); // Initialize the edit context with the location data.
+        _logger.LogInformation("LocationDialog initialization completed for location: {LocationName}", Content?.Name ?? "New Location");
     }
 
+    /// <summary>
+    /// Handles the save action for the dialog.
+    /// Validates the form and, if valid, closes the dialog, returning the <see cref="Content"/>.
+    /// </summary>
     private async Task SaveAsync()
     {
-        // The OnValidSubmit handler on the EditForm ensures this only runs if the form is valid.
-        await Dialog.CloseAsync(Content);
+        _logger.LogInformation("SaveAsync called in LocationDialog for location: {LocationName}", Content.Name);
+        if (_editContext.Validate()) // Check if the form data (location name) is valid.
+        {
+            _logger.LogInformation("LocationDialog form is valid. Closing dialog with content for location: {LocationName}", Content.Name);
+            await Dialog.CloseAsync(Content); // Close the dialog and pass back the DTO.
+        }
+        else
+        {
+            // This case might be less common if the button is disabled, but good for robustness.
+            _logger.LogWarning("LocationDialog form is invalid for location: {LocationName}. Save aborted.", Content.Name);
+        }
     }
 
+    /// <summary>
+    /// Handles the cancel action for the dialog.
+    /// Closes the dialog without returning any data.
+    /// </summary>
     private async Task CancelAsync()
     {
-        await Dialog.CancelAsync();
+        _logger.LogInformation("CancelAsync called in LocationDialog for location: {LocationName}. Closing dialog.", Content?.Name ?? "New Location");
+        await Dialog.CancelAsync(); // Close the dialog, indicating cancellation.
     }
 }

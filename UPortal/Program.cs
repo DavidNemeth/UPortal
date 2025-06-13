@@ -7,90 +7,141 @@ using UPortal.Components;
 using UPortal.Data;
 using UPortal.Services;
 using UPortal.HelperServices;
+using Serilog;
 
-var builder = WebApplication.CreateBuilder(args);
+// Configure Serilog early in the application startup.
+// This ensures that all startup activities can be logged.
+Log.Logger = new LoggerConfiguration()
+    .Enrich.FromLogContext() // Allows enrichment from LogContext, useful for adding properties dynamically.
+    .Enrich.WithMachineName() // Adds the machine name where the log event occurred.
+    .Enrich.WithThreadId() // Adds the managed thread ID.
+    .Enrich.WithProcessId() // Adds the process ID.
+    .Enrich.WithEnvironmentUserName() // Adds the environment user name.
+    .WriteTo.Console() // Outputs logs to the console.
+    .WriteTo.File("logs/uportal-.txt", rollingInterval: RollingInterval.Day) // Outputs logs to a file, rolling daily.
+    .CreateLogger();
 
-// Add services to the container.
-builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-    .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
-
-builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
+try // Main try-catch block for application startup.
 {
-    options.Events ??= new OpenIdConnectEvents();
-    options.Events.OnTokenValidated = async context =>
+    Log.Information("Application Starting Up");
+
+    var builder = WebApplication.CreateBuilder(args);
+
+    // Integrate Serilog with the .NET Core logging system.
+    // This makes Serilog the logging provider for the application.
+    builder.Host.UseSerilog();
+
+    // Add services to the container.
+    // Configure authentication with Azure AD using OpenID Connect.
+    builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
+        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+
+    // Configure OpenID Connect options, specifically the OnTokenValidated event.
+    builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
     {
-        if (context.Principal != null)
+        options.Events ??= new OpenIdConnectEvents();
+        // This event is triggered after a user's token has been validated.
+        options.Events.OnTokenValidated = async context =>
         {
-            // Resolve the IAppUserService from the HttpContext.RequestServices
-            // Using GetService to avoid throwing if not found, though it should be registered.
-            // GetRequiredService would throw, which might be desirable in some cases.
-            var userService = context.HttpContext.RequestServices.GetService<IAppUserService>();
-            if (userService != null)
+            if (context.Principal != null)
             {
-                await userService.CreateOrUpdateUserFromAzureAdAsync(context.Principal);
+                // Attempt to resolve the AppUserService to create or update the user in the local database.
+                // This ensures that users logging in via Azure AD are provisioned in the application's user store.
+                var userService = context.HttpContext.RequestServices.GetService<IAppUserService>();
+                if (userService != null)
+                {
+                    // Call the service to synchronize Azure AD user information with the local database.
+                    await userService.CreateOrUpdateUserFromAzureAdAsync(context.Principal);
+                }
+                else
+                {
+                    // Log a warning if the AppUserService cannot be resolved. This indicates a potential DI configuration issue.
+                    Log.Warning("IAppUserService not found in HttpContext.RequestServices during OnTokenValidated event.");
+                }
             }
-            // else: Log that userService was not found, if necessary
-        }
-        // To ensure other handlers are not overridden if they exist (though usually we initialize new OpenIdConnectEvents)
-        // await Task.CompletedTask; // Not strictly necessary if the method signature is Task and no other async ops follow
-    };
-});
+            // No explicit Task.CompletedTask needed if there are no further async operations here.
+        };
+    });
 
-// Optional: If you want to call protected APIs from your web app
-// .EnableTokenAcquisitionToCallDownstreamApi(builder.Configuration.GetSection("AzureAd:Scopes").Get<string[]>())
-// .AddMicrosoftGraph(builder.Configuration.GetSection("Graph")) // Example for Graph API
-// .AddInMemoryTokenCaches();
+    // Optional configuration for calling protected APIs (e.g., Microsoft Graph).
+    // .EnableTokenAcquisitionToCallDownstreamApi(builder.Configuration.GetSection("AzureAd:Scopes").Get<string[]>())
+    // .AddMicrosoftGraph(builder.Configuration.GetSection("Graph"))
+    // .AddInMemoryTokenCaches();
 
-builder.Services.AddAuthorization(options =>
-{
-    // By default, all authenticated users are authorized.
-    // This policy ensures that any unauthenticated access attempt will trigger the OIDC challenge.
-    options.FallbackPolicy = options.DefaultPolicy;
-});
+    // Configure authorization policies.
+    builder.Services.AddAuthorization(options =>
+    {
+        // FallbackPolicy ensures that any request not matching a specific authorization policy
+        // will fall back to the DefaultPolicy (which usually requires an authenticated user).
+        // This is a common setup to protect the application by default.
+        options.FallbackPolicy = options.DefaultPolicy;
+    });
 
-// For Blazor Server, ensure Microsoft Identity UI is added for handling redirects correctly
-// and providing default pages for sign-in, sign-out.
-builder.Services.AddRazorPages().AddMicrosoftIdentityUI();
+    // Add Razor Pages services and Microsoft Identity UI for handling authentication-related UI (login, logout pages).
+    builder.Services.AddRazorPages().AddMicrosoftIdentityUI();
 
+    // Configure Entity Framework Core DbContext.
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    // Use AddDbContextFactory for creating DbContext instances on demand, which is good for Blazor Server apps.
+    builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+        options.UseSqlServer(connectionString));
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-// To allow creating DbContext instances on demand in other services
-builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
-    options.UseSqlServer(connectionString));
+    // Add Blazor Server components and enable interactive server-side rendering.
+    builder.Services.AddRazorComponents()
+        .AddInteractiveServerComponents();
 
-builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents();
+    // Add Fluent UI Blazor components.
+    builder.Services.AddFluentUIComponents();
+    // Add HttpClient for making HTTP requests.
+    builder.Services.AddHttpClient();
 
-builder.Services.AddFluentUIComponents();
-builder.Services.AddHttpClient();
+    // Register application-specific services with their interfaces for dependency injection.
+    builder.Services.AddScoped<ILocationService, LocationService>(); // Scoped: instance per request (or Blazor circuit).
+    builder.Services.AddScoped<IMachineService, MachineService>();
+    builder.Services.AddScoped<IAppUserService, AppUserService>();
+    builder.Services.AddScoped<IExternalApplicationService, ExternalApplicationService>();
+    builder.Services.AddSingleton<IIconService, IconService>(); // Singleton: single instance for the application lifetime.
 
-builder.Services.AddScoped<ILocationService, LocationService>();
-builder.Services.AddScoped<IMachineService, MachineService>();
-builder.Services.AddScoped<IAppUserService, AppUserService>();
-builder.Services.AddScoped<IExternalApplicationService, ExternalApplicationService>(); // Ensure this is present once
-builder.Services.AddSingleton<IIconService, IconService>();
+    var app = builder.Build();
 
-var app = builder.Build();
+    // Seed initial data into the database. This is often done at startup.
+    await DataSeeder.SeedAsync(app);
 
-await DataSeeder.SeedAsync(app);
+    // Configure the HTTP request pipeline (middleware).
+    if (!app.Environment.IsDevelopment())
+    {
+        // For non-development environments, configure a user-friendly error page.
+        Log.Information("Configuring production exception handler to use /Error page.");
+        app.UseExceptionHandler("/Error", createScopeForErrors: true); // Handles unhandled exceptions.
+        // Use HSTS (HTTP Strict Transport Security) for enhanced security.
+        // The default HSTS value is 30 days. Consider adjusting for production.
+        app.UseHsts();
+    }
 
-// Configure the HTTP request pipeline.
-if (!app.Environment.IsDevelopment())
-{
-    app.UseExceptionHandler("/Error", createScopeForErrors: true);
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
-    app.UseHsts();
+    // Redirect HTTP requests to HTTPS.
+    app.UseHttpsRedirection();
+
+    // Enable serving static files (e.g., CSS, JavaScript, images).
+    app.UseStaticFiles();
+    // Add antiforgery middleware to protect against Cross-Site Request Forgery (CSRF) attacks.
+    app.UseAntiforgery();
+
+    // Enable authentication and authorization middleware.
+    app.UseAuthentication(); // Attempts to authenticate the user.
+    app.UseAuthorization();  // Verifies if the authenticated user is authorized to access resources.
+
+    // Map Blazor components to endpoints, enabling interactive server-side rendering for the main 'App' component.
+    app.MapRazorComponents<App>()
+        .AddInteractiveServerRenderMode();
+
+    // Start the application.
+    app.Run();
 }
-
-app.UseHttpsRedirection();
-
-app.UseStaticFiles();
-app.UseAntiforgery();
-
-app.UseAuthentication();
-app.UseAuthorization();
-
-app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
-
-app.Run();
+catch (Exception ex) // Catch any fatal exceptions during startup.
+{
+    Log.Fatal(ex, "Application start-up failed");
+}
+finally // Ensure Serilog is closed and flushed on application exit, regardless of success or failure.
+{
+    Log.CloseAndFlush();
+}

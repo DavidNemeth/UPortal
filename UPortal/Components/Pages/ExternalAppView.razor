@@ -2,6 +2,8 @@
 @inject IExternalApplicationService ExternalAppService
 @inject NavigationManager NavigationManager
 @inject IJSRuntime JSRuntime
+@inject ILogger<ExternalAppView> _logger
+@inject IToastService ToastService
 @using UPortal.Dtos
 
 <div style="margin-bottom: 10px; margin-top: 10px;">
@@ -28,44 +30,70 @@ else if (application != null)
 }
 
 @code {
+    /// <summary>
+    /// Gets or sets the ID of the external application to display, passed as a route parameter.
+    /// </summary>
     [Parameter]
     public int AppId { get; set; }
 
+    /// <summary>
+    /// Holds the details of the external application loaded from the service.
+    /// </summary>
     private ExternalApplicationDto application;
+
+    /// <summary>
+    /// Indicates whether the application details are currently being loaded.
+    /// </summary>
     private bool isLoading = true;
 
+    /// <summary>
+    /// Navigates back to the previous page in the browser history.
+    /// </summary>
     private async Task GoBackAsync()
     {
+        // Uses JavaScript interop to call the browser's history.back() method.
         await JSRuntime.InvokeVoidAsync("history.back");
     }
 
     /// <summary>
-    /// Lifecycle method called when parameters are set.
-    /// Fetches the application details based on <see cref="ApplicationId"/>.
+    /// Lifecycle method called when parameters are set, including initial parameter setting.
+    /// Fetches the external application details based on the <see cref="AppId"/> parameter.
     /// </summary>
     protected override async Task OnParametersSetAsync()
     {
-        isLoading = true;
+        _logger.LogInformation("ExternalAppView loading application with ID: {AppId}", AppId);
+        isLoading = true; // Set loading state to true before fetching data.
         try
         {
-            // Fetch application details from the service using the provided ApplicationId.
+            // Fetch application details from the ExternalAppService.
             application = await ExternalAppService.GetByIdAsync(AppId);
+
+            if (application == null)
+            {
+                // Log if the application is not found, the service GetByIdAsync already logs a warning.
+                _logger.LogWarning("Application with ID {AppId} not found by service.", AppId);
+                // The UI will show "Application not found" message based on application being null and isLoading being false.
+            }
+            else
+            {
+                _logger.LogInformation("Successfully loaded application: {AppName}", application.AppName);
+            }
         }
         catch (Exception ex)
         {
-            // Log any exceptions that occur during data fetching.
-            // In a real application, this might involve more sophisticated logging to a centralized system.
-            Console.WriteLine($"Error loading application with ID {AppId}: {ex.Message}");
-            application = null; // Ensure application is null if an error occurs to show appropriate UI.
+            // Log any unexpected errors during data fetching.
+            _logger.LogError(ex, "Error loading application with ID {AppId}: {Message}", AppId, ex.Message);
+            ToastService.ShowError("Failed to load application details. Please try again.", 7000);
+            application = null; // Ensure application is null to trigger "not found" UI.
         }
         finally
         {
-            // Ensure loading indicator is turned off regardless of success or failure.
+            // Ensure loading indicator is turned off after operation completes or fails.
             isLoading = false;
         }
     }
 
     // Placeholder class for IStringLocalizer<ExternalAppViewerStrings>
-    // This enables localization for strings used within this component.
+    // This enables localization for strings used within this component, though not currently used.
     public class ExternalAppViewerStrings { }
 }

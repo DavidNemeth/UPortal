@@ -57,55 +57,101 @@
 </FluentDialogFooter>
 
 @code {
+    /// <summary>
+    /// The current <see cref="EditContext"/> for the form.
+    /// </summary>
     private EditContext _editContext = default!;
+
+    /// <summary>
+    /// List of available locations to populate the location dropdown.
+    /// </summary>
     private List<LocationDto> locations;
 
+    /// <summary>
+    /// Gets or sets the cascading <see cref="FluentDialog"/> instance.
+    /// </summary>
     [CascadingParameter]
     public FluentDialog Dialog { get; set; } = default!;
 
+    /// <summary>
+    /// Gets or sets the content of the dialog, which is an <see cref="UpdateAppUserDto"/> object.
+    /// This object is bound to the form fields.
+    /// </summary>
     [Parameter]
     public UpdateAppUserDto Content { get; set; } = default!;
 
+    /// <summary>
+    /// Gets or sets the name of the user being edited, used for logging purposes.
+    /// </summary>
     [Parameter]
     public string UserName { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Gets or sets the Azure AD Object ID of the user being edited, used for logging purposes.
+    /// </summary>
     [Parameter]
     public string AzureAdObjectId { get; set; } = string.Empty;
 
-
+    /// <summary>
+    /// Initializes the dialog by creating an <see cref="EditContext"/> and loading available locations.
+    /// </summary>
     protected override async Task OnInitializedAsync()
     {
-        _editContext = new EditContext(Content);
+        Logger.LogInformation("AppUserDialog for User: {UserName}, AzureAdObjectId: {AzureAdObjectId} initializing.", UserName, AzureAdObjectId);
+        _editContext = new EditContext(Content); // Initialize the edit context with the user data.
         try
         {
+            Logger.LogInformation("Fetching locations for AppUserDialog.");
             locations = await LocationService.GetAllAsync();
+            Logger.LogInformation("Successfully fetched {LocationCount} locations.", locations?.Count ?? 0);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error fetching locations.");
-            locations = new List<LocationDto>(); // Ensure _locations is not null
+            Logger.LogError(ex, "Error fetching locations for AppUserDialog: {Message}", ex.Message);
+            locations = new List<LocationDto>(); // Ensure locations is not null to prevent render errors.
         }
+        Logger.LogInformation("AppUserDialog initialization completed for User: {UserName}.", UserName);
     }
 
+    /// <summary>
+    /// Handles the change event when a new location is selected from the dropdown.
+    /// Updates the <see cref="Content"/>'s LocationId and notifies the <see cref="EditContext"/>.
+    /// </summary>
+    /// <param name="newLocationId">The ID of the newly selected location as a string.</param>
     private void OnLocationChanged(string? newLocationId)
     {
-        if (int.TryParse(newLocationId, out var id) && id > 0)
+        if (int.TryParse(newLocationId, out var id) && id > 0) // Ensure the ID is valid.
         {
             Content.LocationId = id;
-            _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.LocationId));
+            _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.LocationId)); // Notify Blazor that the field has changed.
         }
     }
 
+    /// <summary>
+    /// Handles the save action for the dialog.
+    /// Validates the form and, if valid, closes the dialog, returning the updated <see cref="Content"/>.
+    /// </summary>
     private async Task SaveAsync()
     {
-        if (_editContext.Validate())
+        Logger.LogInformation("SaveAsync called in AppUserDialog for User: {UserName}.", UserName);
+        if (_editContext.Validate()) // Check if the form data is valid.
         {
-            await Dialog.CloseAsync(Content);
+            Logger.LogInformation("AppUserDialog form is valid. Closing dialog with content for User: {UserName}.", UserName);
+            await Dialog.CloseAsync(Content); // Close the dialog and pass back the updated DTO.
+        }
+        else
+        {
+            Logger.LogWarning("AppUserDialog form is invalid for User: {UserName}. Save aborted.", UserName);
         }
     }
 
+    /// <summary>
+    /// Handles the cancel action for the dialog.
+    /// Closes the dialog without returning any data.
+    /// </summary>
     private async Task CancelAsync()
     {
-        await Dialog.CancelAsync();
+        Logger.LogInformation("CancelAsync called in AppUserDialog for User: {UserName}. Closing dialog.", UserName);
+        await Dialog.CancelAsync(); // Close the dialog, indicating cancellation.
     }
 }
