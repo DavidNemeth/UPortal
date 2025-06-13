@@ -4,7 +4,7 @@
       "windowsAuthentication": false,
       "anonymousAuthentication": true,
       "iisExpress": {
-        "applicationUrl": "http://localhost:17659",
+        "applicationUrl": "http://dev.uportal.local:17659",
         "sslPort": 44310
       }
     },
@@ -13,7 +13,7 @@
         "commandName": "Project",
         "dotnetRunMessages": true,
         "launchBrowser": true,
-        "applicationUrl": "http://localhost:5053",
+        "applicationUrl": "http://dev.uportal.local:5053",
         "environmentVariables": {
           "ASPNETCORE_ENVIRONMENT": "Development"
         }
@@ -22,7 +22,7 @@
         "commandName": "Project",
         "dotnetRunMessages": true,
         "launchBrowser": true,
-        "applicationUrl": "https://localhost:7293;http://localhost:5053",
+        "applicationUrl": "https://dev.uportal.local:7293;http://dev.uportal.local:5053",
         "environmentVariables": {
           "ASPNETCORE_ENVIRONMENT": "Development"
         }

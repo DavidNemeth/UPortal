@@ -1,4 +1,6 @@
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Identity.Web;
 using Microsoft.Identity.Web.UI;
 using Microsoft.EntityFrameworkCore;
@@ -34,11 +36,28 @@ try // Main try-catch block for application startup.
 
     // Add services to the container.
     // Configure authentication with Azure AD using OpenID Connect.
-    builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
-        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
+    builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        .AddCookie(options =>
+        {
+            options.Cookie.Name = ".Auth.UPortal";
+            options.Cookie.HttpOnly = true;
+            options.Cookie.SecurePolicy = CookieSecurePolicy.Always; // Requires HTTPS
+            options.Cookie.SameSite = SameSiteMode.Lax;
+            options.LoginPath = "/MicrosoftIdentity/Account/SignIn";
+            options.LogoutPath = "/MicrosoftIdentity/Account/SignOut";
+            options.AccessDeniedPath = "/MicrosoftIdentity/Account/AccessDenied";
+            // Read domain from configuration
+            options.Cookie.Domain = builder.Configuration["CookieSettings:Domain"];
+        })
+        .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"), OpenIdConnectDefaults.AuthenticationScheme, "AzureAd");
+
+    // Configure Data Protection
+    builder.Services.AddDataProtection()
+        .PersistKeysToFileSystem(new DirectoryInfo(builder.Configuration["DataProtectionSettings:KeyPath"]))
+        .SetApplicationName("UPortal");
 
     // Configure OpenID Connect options, specifically the OnTokenValidated event.
-    builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
+    builder.Services.Configure<OpenIdConnectOptions>("AzureAd", options =>
     {
         options.Events ??= new OpenIdConnectEvents();
         // This event is triggered after a user's token has been validated.
@@ -119,6 +138,7 @@ try // Main try-catch block for application startup.
 
         // Optional: Add security definitions for Azure AD (JWT Bearer)
         // This helps Swagger UI to send the token correctly.
+        // Commenting out the existing OAuth2 security definition as per requirements.
         /*
         c.AddSecurityDefinition("oauth2", new OpenApiSecurityScheme
         {
@@ -149,6 +169,66 @@ try // Main try-catch block for application startup.
             }
         });
         */
+
+        // Add Cookie Authentication Security Definition
+        c.AddSecurityDefinition("CookieAuth", new OpenApiSecurityScheme
+        {
+            Name = ".Auth.UPortal", // Must match the cookie name configured in AddCookie()
+            Type = SecuritySchemeType.ApiKey, // Using ApiKey to represent a cookie
+            In = ParameterLocation.Cookie,
+            Scheme = "Cookie", // Descriptive scheme name for Swagger UI
+            Description = "Cookie-based authentication. Login via the Blazor UI first, then the cookie will be automatically sent by the browser."
+        });
+
+        // Add Global Security Requirement for Cookie Authentication
+        c.AddSecurityRequirement(new OpenApiSecurityRequirement
+        {
+            {
+                new OpenApiSecurityScheme
+                {
+                    Reference = new OpenApiReference
+                    {
+                        Type = ReferenceType.SecurityScheme,
+                        Id = "CookieAuth" // Must match the ID used in AddSecurityDefinition
+                    }
+                },
+                new string[] {} // No specific scopes needed for cookie auth in this context
+            }
+        });
+    });
+
+    var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
+
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy(name: MyAllowSpecificOrigins,
+                          policy =>
+                          {
+                              if (builder.Environment.IsDevelopment())
+                              {
+                                  policy.WithOrigins("https://dev.uportal.local:7293",
+                                                     "http://dev.uportal.local:5053")
+                                        .AllowAnyHeader()
+                                        .AllowAnyMethod()
+                                        .AllowCredentials();
+                              }
+                              else
+                              {
+                                  var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+                                  if (allowedOrigins != null && allowedOrigins.Length > 0) {
+                                      policy.WithOrigins(allowedOrigins)
+                                            .AllowAnyHeader()
+                                            .AllowAnyMethod()
+                                            .AllowCredentials();
+                                  } else {
+                                      policy.WithOrigins("https://uportal.yourcompany.com") // Placeholder
+                                            .AllowAnyHeader()
+                                            .AllowAnyMethod()
+                                            .AllowCredentials();
+                                      Log.Warning("CORS production origins not configured in appsettings.json (Cors:AllowedOrigins). Using placeholder.");
+                                  }
+                              }
+                          });
     });
 
     var app = builder.Build();
@@ -187,6 +267,8 @@ try // Main try-catch block for application startup.
     app.UseStaticFiles();
     // Add antiforgery middleware to protect against Cross-Site Request Forgery (CSRF) attacks.
     app.UseAntiforgery();
+
+    app.UseCors(MyAllowSpecificOrigins);
 
     // Enable authentication and authorization middleware.
     app.UseAuthentication(); // Attempts to authenticate the user.
