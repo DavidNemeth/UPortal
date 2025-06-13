@@ -16,11 +16,6 @@
         public string Name { get; set; } = string.Empty;
 
         /// <summary>
-        /// Gets or sets a value indicating whether the user has administrative privileges.
-        /// </summary>
-        public bool IsAdmin { get; set; }
-
-        /// <summary>
         /// Gets or sets a value indicating whether the user account is active.
         /// </summary>
         public bool IsActive { get; set; }
@@ -46,11 +41,6 @@
     /// </summary>
     public class UpdateAppUserDto
     {
-        /// <summary>
-        /// Gets or sets a value indicating whether the user should be an administrator.
-        /// </summary>
-        public bool IsAdmin { get; set; }
-
         /// <summary>
         /// Gets or sets a value indicating whether the user account should be active.
         /// </summary>

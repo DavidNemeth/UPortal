@@ -1,0 +1,232 @@
+@page "/admin/roles"
+@using UPortal.Dtos
+@using UPortal.Services
+@using UPortal.Components.Dialogs
+@using Microsoft.FluentUI.AspNetCore.Components
+@using Microsoft.FluentUI.AspNetCore.Components.Extensions
+@inject IRoleService RoleService
+@inject IPermissionService PermissionService
+@inject IDialogService DialogService
+@inject ILogger<RolesPage> Logger
+@using Microsoft.AspNetCore.Authorization
+
+@attribute [Authorize(Policy = "RequireManageRolesPermission")]
+
+<h3>Roles Management</h3>
+
+@if (isLoading)
+{
+    <p><em>Loading roles...</em> <FluentProgressRing /></p>
+}
+else if (loadError != null)
+{
+    <p style="color: red;"><em>Error loading data: @loadError</em></p>
+}
+else if (roles != null)
+{
+    <FluentButton Appearance="Appearance.Accent" OnClick="OpenCreateRoleDialog" IconStart="@(new Icons.Regular.Size20.Add())">Create New Role</FluentButton>
+    <br /><br />
+    <FluentDataGrid Items="@roles" GridTemplateColumns="1fr 2fr auto" TGridItem="RoleDto">
+        <PropertyColumn Property="@(r => r.Name)" Sortable="true" Title="Role Name"/>
+        <TemplateColumn Title="Permissions">
+            @if (context.Permissions != null && context.Permissions.Any())
+            {
+                @(string.Join(", ", context.Permissions.Select(p => p.Name)))
+            }
+            else
+            {
+                <em>No permissions assigned</em>
+            }
+        </TemplateColumn>
+        <TemplateColumn Title="Actions" Align="Align.End">
+            <FluentButton IconStart="@(new Icons.Regular.Size20.Edit())" Title="Edit" OnClick="@(() => OpenEditRoleDialog(context))" Appearance="Appearance.Stealth" />
+            <FluentButton IconStart="@(new Icons.Regular.Size20.Delete())" Title="Delete" OnClick="@(() => ConfirmDeleteRole(context))" Appearance="Appearance.Stealth" />
+        </TemplateColumn>
+    </FluentDataGrid>
+}
+else
+{
+    <p>No roles found.</p>
+}
+
+@code {
+    private IEnumerable<RoleDto>? roles;
+    private IEnumerable<PermissionDto>? allPermissions;
+    private bool isLoading = true;
+    private string? loadError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            isLoading = true;
+            loadError = null;
+            Logger.LogInformation("RolesPage: Initializing and loading data.");
+            var rolesTask = RoleService.GetAllRolesAsync();
+            var permissionsTask = PermissionService.GetAllPermissionsAsync();
+
+            await Task.WhenAll(rolesTask, permissionsTask);
+
+            roles = await rolesTask;
+            allPermissions = await permissionsTask;
+            Logger.LogInformation("RolesPage: Roles and permissions loaded. Roles count: {RolesCount}, Permissions count: {PermissionsCount}", roles?.Count(), allPermissions?.Count());
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "RolesPage: Error loading roles or permissions during initialization.");
+            loadError = $"An error occurred while loading data: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadRoles()
+    {
+        try
+        {
+            isLoading = true;
+            loadError = null;
+            Logger.LogInformation("RolesPage: Reloading roles.");
+            roles = await RoleService.GetAllRolesAsync();
+            Logger.LogInformation("RolesPage: Roles reloaded. Count: {RolesCount}", roles?.Count());
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "RolesPage: Error reloading roles.");
+            loadError = $"An error occurred while reloading roles: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task OpenCreateRoleDialog()
+    {
+        if (allPermissions == null)
+        {
+            Logger.LogError("RolesPage: Permissions not loaded, cannot open create role dialog.");
+            loadError = "Permissions data is not available. Please try refreshing the page.";
+            return;
+        }
+
+        var dialogParams = new RoleCreateUpdateDialogParameters
+        {
+            AllPermissions = allPermissions ?? new List<PermissionDto>()
+        };
+
+        var parameters = new DialogParameters<RoleCreateUpdateDialogParameters>
+        {
+            Content = dialogParams,
+            PrimaryAction = "Create",
+            SecondaryAction = "Cancel",
+            Title = "Create New Role",
+            Width = "500px"
+        };
+
+        Logger.LogInformation("RolesPage: Opening create role dialog.");
+        var dialog = await DialogService.ShowDialogAsync<RoleCreateUpdateDialog>(parameters);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled && result.Data is RoleCreateDto newRoleDto)
+        {
+            Logger.LogInformation("RolesPage: Create role dialog submitted for role: {RoleName}", newRoleDto.Name);
+            try
+            {
+                await RoleService.CreateRoleAsync(newRoleDto);
+                Logger.LogInformation("RolesPage: Role '{RoleName}' created successfully.", newRoleDto.Name);
+                await LoadRoles();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "RolesPage: Error creating role '{RoleName}'.", newRoleDto.Name);
+                loadError = $"Error creating role: {ex.Message}";
+            }
+        }
+        else if (result.Cancelled) { Logger.LogInformation("RolesPage: Create role dialog was cancelled."); }
+        else { Logger.LogWarning("RolesPage: Create role dialog returned unexpected data type or null data."); }
+    }
+
+    private async Task OpenEditRoleDialog(RoleDto roleToEdit)
+    {
+        if (allPermissions == null)
+        {
+            Logger.LogError("RolesPage: Permissions not loaded, cannot open edit role dialog for role ID {RoleId}.", roleToEdit.Id);
+            loadError = "Permissions data is not available. Please try refreshing the page.";
+            return;
+        }
+
+        var dialogParams = new RoleCreateUpdateDialogParameters
+        {
+            Id = roleToEdit.Id,
+            Name = roleToEdit.Name,
+            SelectedPermissionIds = roleToEdit.Permissions?.Select(p => p.Id).ToList() ?? new List<int>(),
+            AllPermissions = allPermissions ?? new List<PermissionDto>()
+        };
+
+        var parameters = new DialogParameters<RoleCreateUpdateDialogParameters>
+        {
+            Content = dialogParams,
+            PrimaryAction = "Save Changes",
+            SecondaryAction = "Cancel",
+            Title = $"Edit Role: {roleToEdit.Name}",
+            Width = "500px"
+        };
+
+        Logger.LogInformation("RolesPage: Opening edit role dialog for role ID {RoleId}.", roleToEdit.Id);
+        var dialog = await DialogService.ShowDialogAsync<RoleCreateUpdateDialog>(parameters);
+        var result = await dialog.Result;
+
+        if (!result.Cancelled && result.Data is RoleUpdateDto updatedRoleDto)
+        {
+            Logger.LogInformation("RolesPage: Edit role dialog submitted for role ID {RoleId}.", roleToEdit.Id);
+            try
+            {
+                await RoleService.UpdateRoleAsync(roleToEdit.Id, updatedRoleDto);
+                Logger.LogInformation("RolesPage: Role ID {RoleId} updated successfully.", roleToEdit.Id);
+                await LoadRoles();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "RolesPage: Error updating role ID {RoleId}.", roleToEdit.Id);
+                loadError = $"Error updating role: {ex.Message}";
+            }
+        }
+        else if (result.Cancelled) { Logger.LogInformation("RolesPage: Edit role dialog for role ID {RoleId} was cancelled.", roleToEdit.Id); }
+        else { Logger.LogWarning("RolesPage: Edit role dialog for role ID {RoleId} returned unexpected data type or null data.", roleToEdit.Id); }
+    }
+
+    private async Task ConfirmDeleteRole(RoleDto roleToDelete)
+    {
+        Logger.LogInformation("RolesPage: Requesting confirmation to delete role ID {RoleId} Name: {RoleName}.", roleToDelete.Id, roleToDelete.Name);
+        var dialog = await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to delete the role '{roleToDelete.Name}'? This action cannot be undone.",
+            "Delete",
+            "Cancel",
+            "Confirm Delete Role");
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            Logger.LogInformation("RolesPage: Deletion confirmed for role ID {RoleId}.", roleToDelete.Id);
+            try
+            {
+                await RoleService.DeleteRoleAsync(roleToDelete.Id);
+                Logger.LogInformation("RolesPage: Role ID {RoleId} deleted successfully.", roleToDelete.Id);
+                await LoadRoles();
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "RolesPage: Error deleting role ID {RoleId}.", roleToDelete.Id);
+                loadError = $"Error deleting role: {ex.Message}";
+            }
+        }
+        else
+        {
+            Logger.LogInformation("RolesPage: Deletion cancelled for role ID {RoleId}.", roleToDelete.Id);
+        }
+    }
+}

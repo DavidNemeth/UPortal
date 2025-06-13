@@ -30,24 +30,39 @@ namespace UPortal.Services
         /// <returns>A list of <see cref="AppUserDto"/>.</returns>
         public async Task<List<AppUserDto>> GetAllAsync()
         {
-            _logger.LogInformation("GetAllAsync called");
-            // Create a new DbContext instance for this operation.
+            _logger.LogInformation("GetAllAsync called - fetching all users with their roles.");
             await using var context = await _contextFactory.CreateDbContextAsync();
             var users = await context.AppUsers
                 .Include(u => u.Location)
-                .Select(u => new AppUserDto {
-                    Id = u.Id,
-                    Name = u.Name,
-                    IsAdmin = u.IsAdmin,
-                    IsActive = u.IsActive,
-                    AzureAdObjectId = u.AzureAdObjectId,
-                    LocationId = u.LocationId,
-                    LocationName = u.Location != null ? u.Location.Name : string.Empty
-                })
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                        .ThenInclude(r => r.RolePermissions)
+                            .ThenInclude(rp => rp.Permission)
                 .OrderBy(u => u.Name)
                 .ToListAsync();
-            _logger.LogInformation("GetAllAsync completed, returning {UserCount} users.", users.Count);
-            return users;
+
+            var userDtos = users.Select(u => new AppUserDto
+            {
+                Id = u.Id,
+                Name = u.Name,
+                IsActive = u.IsActive,
+                AzureAdObjectId = u.AzureAdObjectId,
+                LocationId = u.LocationId,
+                LocationName = u.Location != null ? u.Location.Name : string.Empty,
+                Roles = u.UserRoles.Select(ur => new RoleDto
+                {
+                    Id = ur.Role.Id,
+                    Name = ur.Role.Name,
+                    Permissions = ur.Role.RolePermissions.Select(rp => new PermissionDto
+                    {
+                        Id = rp.Permission.Id,
+                        Name = rp.Permission.Name
+                    }).ToList()
+                }).ToList()
+            }).ToList();
+
+            _logger.LogInformation("GetAllAsync completed, returning {UserCount} users.", userDtos.Count);
+            return userDtos;
         }
 
         /// <summary>
@@ -74,7 +89,6 @@ namespace UPortal.Services
             {
                 Id = appUser.Id,
                 Name = appUser.Name,
-                IsAdmin = appUser.IsAdmin,
                 IsActive = appUser.IsActive,
                 AzureAdObjectId = appUser.AzureAdObjectId,
                 LocationId = appUser.LocationId,
@@ -128,7 +142,6 @@ namespace UPortal.Services
                     {
                         AzureAdObjectId = azureAdObjectId,
                         Name = name,
-                        IsAdmin = false, // Default for new users, can be changed later by an admin.
                         IsActive = true,   // Default for new users.
                         LocationId = 1    // Placeholder default LocationId, ensure this is a valid existing ID or handle it.
                     };
@@ -173,7 +186,6 @@ namespace UPortal.Services
             {
                 Id = appUser.Id,
                 Name = appUser.Name,
-                IsAdmin = appUser.IsAdmin,
                 IsActive = appUser.IsActive,
                 AzureAdObjectId = appUser.AzureAdObjectId,
                 LocationId = appUser.LocationId,
@@ -192,8 +204,8 @@ namespace UPortal.Services
         /// <exception cref="KeyNotFoundException">Thrown if a user with the specified <paramref name="userId"/> is not found.</exception>
         public async Task UpdateAppUserAsync(int userId, UpdateAppUserDto userToUpdate)
         {
-            _logger.LogInformation("UpdateAppUserAsync called for UserId: {UserId} with Data: IsActive={IsActive}, IsAdmin={IsAdmin}, LocationId={LocationId}",
-                userId, userToUpdate.IsActive, userToUpdate.IsAdmin, userToUpdate.LocationId);
+            _logger.LogInformation("UpdateAppUserAsync called for UserId: {UserId} with Data: IsActive={IsActive}, LocationId={LocationId}",
+                userId, userToUpdate.IsActive, userToUpdate.LocationId);
             await using var context = await _contextFactory.CreateDbContextAsync();
             var appUser = await context.AppUsers.FindAsync(userId); // Retrieve the user to be updated.
 
@@ -205,7 +217,6 @@ namespace UPortal.Services
 
             // Apply updates from the DTO to the entity.
             appUser.IsActive = userToUpdate.IsActive;
-            appUser.IsAdmin = userToUpdate.IsAdmin;
             appUser.LocationId = userToUpdate.LocationId; // Update LocationId
 
             try
@@ -218,6 +229,158 @@ namespace UPortal.Services
                 _logger.LogError(ex, "Error updating user with ID {UserId} in the database.", userId);
                 throw; // Re-throw the exception after logging
             }
+        }
+
+        public async Task AssignRoleToUserAsync(int userId, int roleId)
+        {
+            _logger.LogInformation("AssignRoleToUserAsync called for UserId: {UserId}, RoleId: {RoleId}", userId, roleId);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
+            var userExists = await context.AppUsers.AnyAsync(u => u.Id == userId);
+            if (!userExists)
+            {
+                _logger.LogWarning("User with Id: {UserId} not found.", userId);
+                throw new KeyNotFoundException($"User with ID {userId} not found.");
+            }
+
+            var roleExists = await context.Roles.AnyAsync(r => r.Id == roleId);
+            if (!roleExists)
+            {
+                _logger.LogWarning("Role with Id: {RoleId} not found.", roleId);
+                throw new KeyNotFoundException($"Role with ID {roleId} not found.");
+            }
+
+            var existingAssignment = await context.UserRoles
+                .AnyAsync(ur => ur.AppUserId == userId && ur.RoleId == roleId);
+
+            if (existingAssignment)
+            {
+                _logger.LogInformation("Role {RoleId} is already assigned to User {UserId}.", roleId, userId);
+                return; // Already assigned
+            }
+
+            context.UserRoles.Add(new UserRole { AppUserId = userId, RoleId = roleId });
+
+            try
+            {
+                await context.SaveChangesAsync();
+                _logger.LogInformation("Role {RoleId} assigned to User {UserId} successfully.", roleId, userId);
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error occurred while assigning Role {RoleId} to User {UserId}.", roleId, userId);
+                throw;
+            }
+        }
+
+        public async Task RemoveRoleFromUserAsync(int userId, int roleId)
+        {
+            _logger.LogInformation("RemoveRoleFromUserAsync called for UserId: {UserId}, RoleId: {RoleId}", userId, roleId);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+
+            var assignment = await context.UserRoles
+                .FirstOrDefaultAsync(ur => ur.AppUserId == userId && ur.RoleId == roleId);
+
+            if (assignment == null)
+            {
+                _logger.LogWarning("Role {RoleId} is not assigned to User {UserId}. Cannot remove.", roleId, userId);
+                throw new KeyNotFoundException($"Role {roleId} not assigned to user {userId}.");
+            }
+
+            context.UserRoles.Remove(assignment);
+
+            try
+            {
+                await context.SaveChangesAsync();
+                _logger.LogInformation("Role {RoleId} removed from User {UserId} successfully.", roleId, userId);
+            }
+            catch (DbUpdateException ex)
+            {
+                _logger.LogError(ex, "Database error occurred while removing Role {RoleId} from User {UserId}.", roleId, userId);
+                throw;
+            }
+        }
+
+        public async Task<IEnumerable<RoleDto>> GetRolesForUserAsync(int userId)
+        {
+            _logger.LogInformation("GetRolesForUserAsync called for UserId: {UserId}", userId);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var user = await context.AppUsers
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .ThenInclude(r => r.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                _logger.LogWarning("User with Id: {UserId} not found.", userId);
+                throw new KeyNotFoundException($"User with ID {userId} not found.");
+            }
+
+            var roles = user.UserRoles
+                .Select(ur => new RoleDto
+                {
+                    Id = ur.Role.Id,
+                    Name = ur.Role.Name,
+                    Permissions = ur.Role.RolePermissions.Select(rp => new PermissionDto
+                    {
+                        Id = rp.Permission.Id,
+                        Name = rp.Permission.Name
+                    }).ToList()
+                })
+                .OrderBy(r => r.Name)
+                .ToList();
+
+            _logger.LogInformation("GetRolesForUserAsync completed for UserId: {UserId}, returning {RoleCount} roles.", userId, roles.Count);
+            return roles;
+        }
+
+        public async Task<bool> UserHasPermissionAsync(int userId, string permissionName)
+        {
+            _logger.LogInformation("UserHasPermissionAsync called for UserId: {UserId}, PermissionName: {PermissionName}", userId, permissionName);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var user = await context.AppUsers
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .ThenInclude(r => r.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                _logger.LogWarning("User with Id: {UserId} not found for permission check.", userId);
+                return false;
+            }
+
+            var hasPermission = user.UserRoles
+                .SelectMany(ur => ur.Role.RolePermissions)
+                .Any(rp => rp.Permission.Name == permissionName);
+
+            _logger.LogInformation("UserHasPermissionAsync check for UserId: {UserId}, PermissionName: {PermissionName} resulted in {HasPermission}.", userId, permissionName, hasPermission);
+            return hasPermission;
+        }
+
+        public async Task<bool> UserHasRoleAsync(int userId, string roleName)
+        {
+            _logger.LogInformation("UserHasRoleAsync called for UserId: {UserId}, RoleName: {RoleName}", userId, roleName);
+            await using var context = await _contextFactory.CreateDbContextAsync();
+            var user = await context.AppUsers
+                .Include(u => u.UserRoles)
+                .ThenInclude(ur => ur.Role)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (user == null)
+            {
+                _logger.LogWarning("User with Id: {UserId} not found for role check.", userId);
+                return false;
+            }
+
+            var hasRole = user.UserRoles
+                .Any(ur => ur.Role.Name == roleName);
+
+            _logger.LogInformation("UserHasRoleAsync check for UserId: {UserId}, RoleName: {RoleName} resulted in {HasRole}.", userId, roleName, hasRole);
+            return hasRole;
         }
     }
 }

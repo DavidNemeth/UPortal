@@ -26,11 +26,6 @@ namespace UPortal.Data.Models
         public string Name { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the user has administrative privileges.
-        /// </summary>
-        public bool IsAdmin { get; set; }
-
-        /// <summary>
         /// Gets or sets a value indicating whether the user account is active. Defaults to true.
         /// </summary>
         public bool IsActive { get; set; } = true;
@@ -50,5 +45,6 @@ namespace UPortal.Data.Models
         /// Initialized to an empty list to prevent null reference exceptions.
         /// </summary>
         public ICollection<Machine> Machines { get; set; } = new List<Machine>();
+        public ICollection<UserRole> UserRoles { get; set; } = new List<UserRole>();
     }
 }

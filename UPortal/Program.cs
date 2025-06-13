@@ -11,6 +11,8 @@ using UPortal.Services;
 using UPortal.HelperServices;
 using Serilog;
 using Microsoft.OpenApi.Models;
+using Microsoft.AspNetCore.Authorization; // Added for IAuthorizationHandler
+using UPortal.Security; // Added for PermissionHandler and PermissionRequirement
 
 // Configure Serilog early in the application startup.
 // This ensures that all startup activities can be logged.
@@ -98,10 +100,34 @@ try // Main try-catch block for application startup.
     // .AddInMemoryTokenCaches();
 
     // Configure authorization policies.
+    builder.Services.AddSingleton<IAuthorizationHandler, PermissionHandler>();
+
     builder.Services.AddAuthorization(options =>
     {
-        // The FallbackPolicy is removed.
-        // You can add other specific policies here in the future if needed.
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+
+        // Define permissions that will be used in policies
+        // This list should match the permissions seeded in DataSeeder.cs
+        var permissions = new List<string>
+        {
+            "ManageUsers", "ViewUsers", "EditUsers",
+            "ManageRoles", "ViewRoles", "AssignRoles",
+            "ManagePermissions", "ViewPermissions",
+            "ManageSettings",
+            "AccessAdminPages",
+            "ViewDashboard",
+            "ManageMachines", "ViewMachines",
+            "ManageLocations", "ViewLocations",
+            "ManageExternalApplications", "ViewExternalApplications"
+        };
+
+        foreach (var permission in permissions)
+        {
+            options.AddPolicy($"Require{permission}Permission", policy =>
+                policy.Requirements.Add(new PermissionRequirement(permission)));
+        }
     });
 
     // Add Razor Pages services and Microsoft Identity UI for handling authentication-related UI (login, logout pages).
@@ -134,6 +160,8 @@ try // Main try-catch block for application startup.
     builder.Services.AddScoped<IMachineService, MachineService>();
     builder.Services.AddScoped<IAppUserService, AppUserService>();
     builder.Services.AddScoped<IExternalApplicationService, ExternalApplicationService>();
+    builder.Services.AddScoped<IRoleService, RoleService>();
+    builder.Services.AddScoped<IPermissionService, PermissionService>();
     builder.Services.AddSingleton<IIconService, IconService>(); // Singleton: single instance for the application lifetime.
 
     // Add API Explorer and Swagger Gen services
