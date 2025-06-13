@@ -14,6 +14,28 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddAuthentication(OpenIdConnectDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApp(builder.Configuration.GetSection("AzureAd"));
 
+builder.Services.Configure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, options =>
+{
+    options.Events ??= new OpenIdConnectEvents();
+    options.Events.OnTokenValidated = async context =>
+    {
+        if (context.Principal != null)
+        {
+            // Resolve the IAppUserService from the HttpContext.RequestServices
+            // Using GetService to avoid throwing if not found, though it should be registered.
+            // GetRequiredService would throw, which might be desirable in some cases.
+            var userService = context.HttpContext.RequestServices.GetService<IAppUserService>();
+            if (userService != null)
+            {
+                await userService.CreateOrUpdateUserFromAzureAdAsync(context.Principal);
+            }
+            // else: Log that userService was not found, if necessary
+        }
+        // To ensure other handlers are not overridden if they exist (though usually we initialize new OpenIdConnectEvents)
+        // await Task.CompletedTask; // Not strictly necessary if the method signature is Task and no other async ops follow
+    };
+});
+
 // Optional: If you want to call protected APIs from your web app
 // .EnableTokenAcquisitionToCallDownstreamApi(builder.Configuration.GetSection("AzureAd:Scopes").Get<string[]>())
 // .AddMicrosoftGraph(builder.Configuration.GetSection("Graph")) // Example for Graph API

@@ -1,8 +1,12 @@
 ﻿@inherits LayoutComponentBase
 @inject NavigationManager NavigationManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IAppUserService AppUserService
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.FluentUI.AspNetCore.Components.Icons
 @using Microsoft.AspNetCore.Components.Authorization
+@using System.Security.Claims
+@using UPortal.Services
 
 <FluentDesignTheme @bind-Mode="@_themeMode" OfficeColor="@_themeColor" StorageName="theme" />
 
@@ -12,35 +16,80 @@
 <FluentMessageBarProvider />
 <FluentMenuProvider />
 
-<FluentLayout Style="display: flex; flex-direction: column; height: 100vh;">
-    <FluentHeader>
-        <FluentLabel Typo="Typography.PageTitle">Portal Header</FluentLabel>
-        <FluentSpacer />
-        <FluentButton IconStart="@(new Icons.Regular.Size24.Settings())" Appearance="Appearance.Stealth" OnClick="@ToggleThemeSelector" Title="Theme Settings" Style="margin-right: 10px;" />
+@if (!isUserInactive)
+{
+    <FluentLayout Style="display: flex; flex-direction: column; height: 100vh;">
+        <FluentHeader>
+            <FluentLabel Typo="Typography.PageTitle">Portal Header</FluentLabel>
+            <FluentSpacer />
+            <FluentButton IconStart="@(new Icons.Regular.Size24.Settings())" Appearance="Appearance.Stealth" OnClick="@ToggleThemeSelector" Title="Theme Settings" Style="margin-right: 10px;" />
 
-        <AuthorizeView>
-            <Authorized>
-                <FluentLabel Style="margin-right: 10px;">Hello, @context.User.Identity?.Name!</FluentLabel>
-                <FluentButton Appearance="Appearance.Stealth" OnClick="HandleSignOut">Sign Out</FluentButton>
-            </Authorized>
-        </AuthorizeView>
-    </FluentHeader>
+            <AuthorizeView>
+                <Authorized>
+                    <FluentLabel Style="margin-right: 10px;">Hello, @userName!</FluentLabel> @* Changed to use userName field *@
+                    <FluentButton Appearance="Appearance.Stealth" OnClick="HandleSignOut">Sign Out</FluentButton>
+                </Authorized>
+            </AuthorizeView>
+        </FluentHeader>
 
-    <FluentStack Orientation="Orientation.Horizontal" Width="100%" Style="flex-grow: 1; overflow: hidden;">
-        <NavMenu />
-        <FluentBodyContent Style="flex-grow: 1; overflow-y: auto;">
-            <div class="content-area" style="padding: 1rem;">
-                @Body
-            </div>
-        </FluentBodyContent>
-    </FluentStack>
+        <FluentStack Orientation="Orientation.Horizontal" Width="100%" Style="flex-grow: 1; overflow: hidden;">
+            <NavMenu />
+            <FluentBodyContent Style="flex-grow: 1; overflow-y: auto;">
+                <div class="content-area" style="padding: 1rem;">
+                    @Body
+                </div>
+            </FluentBodyContent>
+        </FluentStack>
 
-    <FluentFooter Style="text-align: center; padding: 0.5rem; flex-shrink: 0;">
-        &copy; @DateTime.Now.Year UPortal. All rights reserved.
-    </FluentFooter>
-</FluentLayout>
+        <FluentFooter Style="text-align: center; padding: 0.5rem; flex-shrink: 0;">
+            &copy; @DateTime.Now.Year UPortal. All rights reserved.
+        </FluentFooter>
+    </FluentLayout>
 
-@if (isThemeSelectorVisible)
+    @if (isThemeSelectorVisible) // Keep theme selector logic within the active user view
+    {
+        <FluentDialog @bind-Hidden="@isDialogHidden" Modal="true" TrapFocus="true" PreventScroll="true" Id="theme-selector-dialog">
+            <FluentDialogHeader>Select Theme</FluentDialogHeader>
+            <FluentDialogBody>
+                <FluentStack VerticalGap="10">
+                    <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.System))" Style="width: 100%;">System (Default)</FluentButton>
+                    <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.Light))" Style="width: 100%;">Light</FluentButton>
+                    <FluentButton Appearance="Appearance.Neutral" OnClick="@(() => SelectTheme(DesignThemeModes.Dark))" Style="width: 100%;">Dark</FluentButton>
+                </FluentStack>
+                <p style="font-size: var(--type-ramp-minus-1-font-size); margin-top: 15px;">
+                    <strong>Note:</strong> High Contrast mode is automatically detected and applied if enabled in your operating system.
+                </p>
+            </FluentDialogBody>
+            <FluentDialogFooter>
+                <FluentButton Appearance="Appearance.Lightweight" OnClick="@ToggleThemeSelector">Close</FluentButton>
+            </FluentDialogFooter>
+        </FluentDialog>
+    }
+}
+else
+{
+    <FluentLayout Style="display: flex; flex-direction: column; height: 100vh;">
+        <FluentHeader>
+            <FluentLabel Typo="Typography.PageTitle">UPortal</FluentLabel>
+        </FluentHeader>
+        <FluentStack Class="main" Orientation="Orientation.Vertical" HorizontalAlignment="HorizontalAlignment.Center" VerticalAlignment="VerticalAlignment.Center" Style="width: 100%; flex-grow: 1;">
+            <FluentBodyContent Class="body-content" Style="text-align: center;">
+                <div class="content" style="padding: 2rem;">
+                    <FluentIcon Value="@(new Icons.Regular.Size48.Warning())" Color="Color.Error" Style="margin-bottom: 1rem;" />
+                    <h2>Account Inactive</h2>
+                    <p>Your account, <strong>@userName</strong>, is currently inactive.</p>
+                    <p>Please contact the administrator for assistance.</p>
+                    <FluentButton Appearance="Appearance.Accent" OnClick="HandleSignOut" Style="margin-top: 1rem;">Sign Out</FluentButton>
+                </div>
+            </FluentBodyContent>
+        </FluentStack>
+        <FluentFooter Style="text-align: center; padding: 0.5rem; flex-shrink: 0;">
+            &copy; @DateTime.Now.Year UPortal. All rights reserved.
+        </FluentFooter>
+    </FluentLayout>
+}
+
+@if (isThemeSelectorVisible && !isUserInactive) // Ensure theme dialog is only shown for active users
 {
     <FluentDialog @bind-Hidden="@isDialogHidden" Modal="true" TrapFocus="true" PreventScroll="true" Id="theme-selector-dialog">
         <FluentDialogHeader>Select Theme</FluentDialogHeader>
@@ -94,6 +143,58 @@
     private bool isThemeSelectorVisible = false;
     private bool isDialogHidden = true;
 
+    private bool isUserInactive = false;
+    private string userName = "User"; // Default value
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity != null && user.Identity.IsAuthenticated)
+        {
+            userName = user.Identity.Name ?? "User"; // Get user's display name
+            // Using "http://schemas.microsoft.com/identity/claims/objectidentifier" for Azure AD Object ID
+            var azureAdObjectId = user.FindFirstValue("http://schemas.microsoft.com/identity/claims/objectidentifier");
+
+            if (!string.IsNullOrEmpty(azureAdObjectId) && AppUserService != null)
+            {
+                var appUser = await AppUserService.GetByAzureAdObjectIdAsync(azureAdObjectId);
+                if (appUser != null && !appUser.IsActive)
+                {
+                    isUserInactive = true;
+                }
+                else if (appUser == null)
+                {
+                    // User authenticated with Azure AD but not in local DB.
+                    // This implies an issue, possibly sync hasn't happened or failed.
+                    // Treat as inactive for security.
+                    isUserInactive = true;
+                }
+                else
+                {
+                    isUserInactive = false; // Ensure it's reset if user becomes active again
+                }
+            }
+            else if (string.IsNullOrEmpty(azureAdObjectId))
+            {
+                // This case means the user is authenticated but we can't get their Azure AD Object ID.
+                // This is unusual for Azure AD setups. For safety, treat as potentially problematic.
+                // Depending on policy, could also set isUserInactive = true here.
+                // For now, we'll assume if they are authenticated and we can't get ID, they proceed,
+                // but this relies on OnTokenValidated sync creating the user correctly.
+                // If AppUserService is null (shouldn't happen due to DI), also problematic.
+            }
+        }
+        else
+        {
+            userName = "Guest";
+            isUserInactive = false; // Reset for non-authenticated state
+        }
+        await base.OnParametersSetAsync(); // Call base method
+        // StateHasChanged(); // Usually not needed here as Blazor handles it for lifecycle methods
+    }
+
     private void ToggleThemeSelector()
     {
         isThemeSelectorVisible = !isThemeSelectorVisible;
@@ -108,6 +209,7 @@
 
     private void HandleSignOut()
     {
+        isUserInactive = false; // Reset state on sign out
         NavigationManager.NavigateTo("/MicrosoftIdentity/Account/SignOut", forceLoad: true);
     }
 }

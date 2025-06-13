@@ -1,0 +1,79 @@
+@page "/admin/users"
+@inject IAppUserService AppUserService
+@inject IDialogService DialogService
+@inject IToastService ToastService
+@using Microsoft.FluentUI.AspNetCore.Components
+@using UPortal.Dtos
+
+<PageTitle>Users</PageTitle>
+
+<FluentStack VerticalAlignment="VerticalAlignment.Center" HorizontalGap="10">
+    <h1>Users Administration</h1>
+    @* No "Add User" button as per requirements *@
+</FluentStack>
+
+@if (users is null)
+{
+    <FluentProgressRing />
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <FluentDataGrid Pagination="@pagination"
+                    RowSize="@DataGridRowSize.Medium"
+                    Items="@users.AsQueryable()"
+                    GridTemplateColumns="0.5fr 2fr 2fr 1fr 1fr 1fr" TGridItem="AppUserDto">
+        <PropertyColumn Property="@(dto => dto.Id)" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.Name)" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.AzureAdObjectId)" Title="Azure AD Object ID" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.IsAdmin)" Title="Admin" Sortable="true" />
+        <PropertyColumn Property="@(dto => dto.IsActive)" Title="Active" Sortable="true" />
+
+        <TemplateColumn Title="Actions" Align="Align.End">
+            <FluentButton IconStart="@(new Icons.Regular.Size16.Edit())" Title="Toggle Active Status" OnClick="@(() => ToggleUserStatusAsync(context))"></FluentButton>
+        </TemplateColumn>
+    </FluentDataGrid>
+
+    <FluentPaginator State="@pagination" />
+}
+
+@code {
+    private List<AppUserDto>? users;
+    private PaginationState pagination = new PaginationState() { ItemsPerPage = 10 };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshGridDataAsync();
+    }
+
+    private async Task RefreshGridDataAsync()
+    {
+        users = await AppUserService.GetAllAsync();
+        users = users.OrderBy(u => u.Name).ToList(); // Optional: client-side sort if not done by service
+        StateHasChanged();
+    }
+
+    private async Task ToggleUserStatusAsync(AppUserDto userToUpdate)
+    {
+        // Optional: Confirmation Dialog
+        var dialog = await DialogService.ShowConfirmationAsync(
+            $"Are you sure you want to change status for '{userToUpdate.Name}' to '{(!userToUpdate.IsActive ? "Active" : "Inactive")}'?",
+            "Yes, change", "No, cancel", "Confirm Status Change");
+
+        var result = await dialog.Result;
+
+        if (!result.Cancelled)
+        {
+            try
+            {
+                await AppUserService.UpdateUserStatusAsync(userToUpdate.Id, !userToUpdate.IsActive);
+                ToastService.ShowSuccess($"User '{userToUpdate.Name}' status updated successfully to {(!userToUpdate.IsActive ? "Active" : "Inactive")}."); // Corrected message
+                await RefreshGridDataAsync();
+            }
+            catch (Exception ex)
+            {
+                ToastService.ShowError($"Failed to update user status: {ex.Message}");
+            }
+        }
+    }
+}
