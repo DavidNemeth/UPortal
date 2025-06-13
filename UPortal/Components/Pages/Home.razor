@@ -31,25 +31,29 @@ else if (!_applications.Any())
 }
 else
 {
-    @foreach (var app in _applications)
-    {
-        <FluentGrid Spacing="3">
+    <FluentGrid Spacing="3">
+        @foreach (var app in _applications)
+        {
             <FluentGridItem xs="12" sm="6" md="4" lg="3">
-                <FluentCard Height="120px" Style="width: 100%; cursor: pointer;" @onclick="@(() => NavigateToAppView(app.Id))">
-                    <FluentStack Orientation="Orientation.Vertical" HorizontalAlignment="HorizontalAlignment.Center" VerticalAlignment="VerticalAlignment.Center" Style="height: 100%; padding-bottom: 20px;">
-                        <FluentIcon Value="@(GetIconInstance(app.IconName))" Style="margin-bottom: 10px;" />
-                        <FluentLabel Typo="Typography.Body">@app.AppName</FluentLabel>
-                    </FluentStack>
+                <div style="position: relative;">
+
                     <FluentButton IconStart="@(new Icons.Regular.Size16.Delete())"
                                   Appearance="Appearance.Lightweight"
                                   OnClick="@(() => OpenDeleteConfirmationDialogAsync(app))"
                                   Style="position: absolute; top: 5px; right: 5px; z-index: 1; --button-icon-size: 16px; padding: 4px; min-width: auto;"
                                   Title="Delete Application" />
-                </FluentCard>
+                    <FluentCard Height="120px" @onclick="@(() => NavigateToAppView(app.Id))" class="fluent-card">
+                        <FluentIcon Value="@(GetIconInstance(app.IconName))" class="fluent-icon" />
+                        <div style="margin-top: 10px;font-weight: 600;">
+                            @app.AppName
+                        </div>
+                    </FluentCard>
+                </div>
             </FluentGridItem>
-        </FluentGrid>
-    }
+        }
+    </FluentGrid>
 }
+
 <div style="position: fixed; bottom: 60px; right: 20px; z-index: 1000;">
     <FluentButton IconStart="@(new Icons.Regular.Size24.Add())"
                   Appearance="Appearance.Accent"
@@ -98,20 +102,16 @@ else
     {
         try
         {
-            // Ensure IconName is set if selected, otherwise it might be null
-            // For this example, we assume appFromForm.IconName is correctly bound from AddExternalApplicationForm
             await ExternalAppService.AddAsync(appFromForm);
-
 
             isAddAppDialogVisible = false;
             await LoadApplicationsAsync();
-            StateHasChanged();
-            ToastService.ShowSuccess($"Application '{0}' added successfully!", 5000, appFromForm.AppName);
+            ToastService.ShowSuccess($"Application '{appFromForm.AppName}' added successfully!", 5000);
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error saving external application: {ex.Message}");
-            ToastService.ShowError($"Error adding application", 5000);
+            ToastService.ShowError("Error adding application", 5000);
         }
     }
 
@@ -136,12 +136,12 @@ else
             try
             {
                 await ExternalAppService.DeleteAsync(appToDelete.Id);
-                ToastService.ShowSuccess("Application deleted successfully."); // Ensure ToastService is injected
+                ToastService.ShowSuccess("Application deleted successfully.");
                 await LoadApplicationsAsync();
             }
             catch (Exception ex)
             {
-                ToastService.ShowError($"Failed to delete application: {ex.Message}"); // Ensure ToastService is injected
+                ToastService.ShowError($"Failed to delete application: {ex.Message}");
                 // Log the exception ex
             }
         }
@@ -152,19 +152,18 @@ else
     {
         if (string.IsNullOrEmpty(iconFullName)) return new Icons.Regular.Size32.Question();
 
-        // Simplified based on AddExternalApplicationDialog's GetIconInstance
         return iconFullName switch
         {
-            "@Icons.Regular.Size24.Home" => new Icons.Regular.Size32.Home(),
-            "@Icons.Regular.Size24.AppFolder" => new Icons.Regular.Size32.AppFolder(),
-            "@Icons.Regular.Size24.Link" => new Icons.Regular.Size32.Link(),
-            "@Icons.Regular.Size24.Globe" => new Icons.Regular.Size32.Globe(),
-            "@Icons.Regular.Size24.Settings" => new Icons.Regular.Size32.Settings(),
-            "@Icons.Regular.Size24.Mail" => new Icons.Regular.Size32.Mail(),
-            "@Icons.Regular.Size24.CalendarLtr" => new Icons.Regular.Size32.CalendarLtr(),
-            "@Icons.Regular.Size24.Document" => new Icons.Regular.Size32.Document(),
-            "@Icons.Regular.Size24.Heart" => new Icons.Regular.Size32.Heart(),
-            "@Icons.Regular.Size24.Star" => new Icons.Regular.Size32.Star(),
+            "Home" => new Icons.Regular.Size32.Home(),
+            "AppFolder" => new Icons.Regular.Size32.AppFolder(),
+            "Link" => new Icons.Regular.Size32.Link(),
+            "Globe" => new Icons.Regular.Size32.Globe(),
+            "Settings" => new Icons.Regular.Size32.Settings(),
+            "Mail" => new Icons.Regular.Size32.Mail(),
+            "CalendarLtr" => new Icons.Regular.Size32.CalendarLtr(),
+            "Document" => new Icons.Regular.Size32.Document(),
+            "Heart" => new Icons.Regular.Size32.Heart(),
+            "Star" => new Icons.Regular.Size32.Star(),
             _ => new Icons.Regular.Size32.Question(), // Default for unknown icons
         };
     }
