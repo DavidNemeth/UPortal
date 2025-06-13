@@ -3,6 +3,8 @@
 
 @inject ILocationService LocationService
 @inject IAppUserService AppUserService
+@inject ILogger<MachineDialog> _logger
+@inject IToastService ToastService
 
 @if (_editContext is not null)
 {
@@ -81,58 +83,121 @@
 
 @code
 {
+    /// <summary>
+    /// The current <see cref="EditContext"/> for the form.
+    /// </summary>
     private EditContext _editContext = default!;
+
+    /// <summary>
+    /// List of available locations to populate the location dropdown.
+    /// Initialized to an empty list to prevent null issues before data is loaded.
+    /// </summary>
     private List<LocationDto> locations = new();
+
+    /// <summary>
+    /// List of available application users to populate the assigned user dropdown.
+    /// Initialized to an empty list.
+    /// </summary>
     private List<AppUserDto> appUsers = new();
 
+    /// <summary>
+    /// Gets or sets the cascading <see cref="FluentDialog"/> instance.
+    /// </summary>
     [CascadingParameter]
     public FluentDialog Dialog { get; set; } = default!;
 
+    /// <summary>
+    /// Gets or sets the content of the dialog, which is a <see cref="CreateMachineDto"/> object.
+    /// This object is bound to the form fields.
+    /// </summary>
     [Parameter]
     public CreateMachineDto Content { get; set; } = default!;
 
+    /// <summary>
+    /// Initializes the dialog by creating an <see cref="EditContext"/> and loading
+    /// available locations and application users for the dropdowns.
+    /// </summary>
     protected override async Task OnInitializedAsync()
     {
-        // OnInitialized is great for one-time setup and data loading.
-        _editContext = new EditContext(Content);
-        locations = await LocationService.GetAllAsync();
-        appUsers = await AppUserService.GetAllAsync();
+        _logger.LogInformation("MachineDialog initializing for machine: {MachineName}", Content?.Name ?? "New Machine");
+        _editContext = new EditContext(Content); // Initialize the edit context with machine data.
+        try
+        {
+            _logger.LogInformation("Fetching locations for MachineDialog.");
+            locations = await LocationService.GetAllAsync();
+            _logger.LogInformation("Successfully fetched {LocationCount} locations.", locations?.Count ?? 0);
+
+            _logger.LogInformation("Fetching app users for MachineDialog.");
+            appUsers = await AppUserService.GetAllAsync();
+            _logger.LogInformation("Successfully fetched {AppUserCount} app users.", appUsers?.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching data for MachineDialog: {Message}", ex.Message);
+            ToastService.ShowError("Error loading data for machine dialog. Please try closing and reopening.", 7000);
+            // Ensure lists are initialized even if loading fails, to prevent null reference errors in the UI.
+            locations ??= new List<LocationDto>();
+            appUsers ??= new List<AppUserDto>();
+        }
+        _logger.LogInformation("MachineDialog initialization completed for machine: {MachineName}", Content?.Name ?? "New Machine");
     }
 
+    /// <summary>
+    /// Handles the change event when a new location is selected from the dropdown.
+    /// Updates the <see cref="Content"/>'s LocationId and notifies the <see cref="EditContext"/>.
+    /// </summary>
+    /// <param name="newLocationId">The ID of the newly selected location as a string.</param>
     private void OnLocationChanged(string? newLocationId)
     {
-        if (int.TryParse(newLocationId, out var id) && id > 0)
+        if (int.TryParse(newLocationId, out var id) && id > 0) // Ensure the ID is valid and not the placeholder.
         {
             Content.LocationId = id;
-            _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.LocationId));
+            _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.LocationId)); // Notify Blazor that the field has changed.
         }
     }
 
+    /// <summary>
+    /// Handles the change event when a new user is selected from the "Assigned User" dropdown.
+    /// Updates the <see cref="Content"/>'s AppUserId and notifies the <see cref="EditContext"/>.
+    /// </summary>
+    /// <param name="newUserId">The ID of the newly selected user as a string, or "0" for unassigned.</param>
     private void OnUserChanged(string? newUserId)
     {
-        if (int.TryParse(newUserId, out var id) && id > 0)
+        if (int.TryParse(newUserId, out var id) && id > 0) // Check if a valid user ID is selected.
         {
             Content.AppUserId = id;
         }
         else
         {
-            Content.AppUserId = null; // Handle the "Unassigned" case
+            Content.AppUserId = null; // Handle the "Unassigned" case (value "0").
         }
-        _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.AppUserId));
+        _editContext.NotifyFieldChanged(FieldIdentifier.Create(() => Content.AppUserId)); // Notify Blazor about the change.
     }
 
+    /// <summary>
+    /// Handles the save action for the dialog.
+    /// Validates the form and, if valid, closes the dialog, returning the <see cref="Content"/>.
+    /// </summary>
     private async Task SaveAsync()
     {
-        // We manually validate before closing the dialog.
+        _logger.LogInformation("SaveAsync called in MachineDialog for machine: {MachineName}", Content.Name);
+        // Manually validate the EditContext before proceeding.
         if (!_editContext.Validate())
         {
-            return;
+            _logger.LogWarning("MachineDialog form is invalid for machine: {MachineName}. Save aborted.", Content.Name);
+            return; // Stop if validation fails.
         }
-        await Dialog.CloseAsync(Content);
+        _logger.LogInformation("MachineDialog form is valid. Closing dialog with content for machine: {MachineName}", Content.Name);
+        await Dialog.CloseAsync(Content); // Close the dialog and pass back the DTO.
     }
 
+    /// <summary>
+    /// Handles the cancel action for the dialog.
+    /// Closes the dialog without returning any data.
+    /// </summary>
     private async Task CancelAsync()
     {
-        await Dialog.CancelAsync();
+        _logger.LogInformation("CancelAsync called in MachineDialog for machine: {MachineName}. Closing dialog.", Content?.Name ?? "New Machine");
+        await Dialog.CancelAsync(); // Close the dialog, indicating cancellation.
     }
 }

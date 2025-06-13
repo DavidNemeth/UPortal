@@ -8,6 +8,7 @@
 @inject IExternalApplicationService ExternalAppService
 @inject IToastService ToastService
 @inject NavigationManager NavigationManager
+@inject ILogger<Home> _logger
 
 <PageTitle>Home</PageTitle>
 
@@ -62,23 +63,59 @@ else
 </div>
 
 @code {
+    /// <summary>
+    /// List of external applications to display.
+    /// </summary>
     private List<ExternalApplicationDto> _applications;
+
+    /// <summary>
+    /// Controls the visibility of the 'Add External Application' dialog.
+    /// </summary>
     private bool isAddAppDialogVisible = false;
+
+    /// <summary>
+    /// Model for a new external application being added via the dialog.
+    /// </summary>
     private ExternalApplicationDto newApp = new ExternalApplicationDto();
 
+    /// <summary>
+    /// Initializes the component by loading the list of external applications.
+    /// This method is called when the component is first initialized.
+    /// </summary>
     protected override async Task OnInitializedAsync()
     {
+        _logger.LogInformation("Home page initializing.");
         await LoadApplicationsAsync();
+        _logger.LogInformation("Home page initialization completed.");
     }
 
+    /// <summary>
+    /// Navigates to the view page for a specific application.
+    /// </summary>
+    /// <param name="appId">The ID of the application to view.</param>
     private void NavigateToAppView(int appId)
     {
         NavigationManager.NavigateTo($"/app/{appId}");
     }
 
+    /// <summary>
+    /// Loads the list of external applications from the service.
+    /// Handles potential errors during loading and updates the UI accordingly.
+    /// </summary>
     private async Task LoadApplicationsAsync()
     {
-        _applications = await ExternalAppService.GetAllAsync();
+        _logger.LogInformation("Loading applications.");
+        try
+        {
+            _applications = await ExternalAppService.GetAllAsync();
+            _logger.LogInformation("Successfully loaded {ApplicationCount} applications.", _applications?.Count ?? 0);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error loading applications: {Message}", ex.Message);
+            ToastService.ShowError("Failed to load applications. Please try refreshing the page.", 7000);
+            _applications = new List<ExternalApplicationDto>(); // Ensure _applications is not null
+        }
         StateHasChanged();
     }
 
@@ -88,6 +125,7 @@ else
     /// </summary>
     private void OpenAddAppDialog()
     {
+        _logger.LogInformation("Opening Add Application dialog.");
         newApp = new ExternalApplicationDto(); // Reset model for new entry
         isAddAppDialogVisible = true;
     }
@@ -100,18 +138,20 @@ else
     /// <param name="appFromForm">The external application model from the submitted form.</param>
     private async Task HandleSaveExternalApp(ExternalApplicationDto appFromForm)
     {
+        _logger.LogInformation("Attempting to save external application: {AppName}", appFromForm.AppName);
         try
         {
             await ExternalAppService.AddAsync(appFromForm);
+            _logger.LogInformation("External application {AppName} saved successfully.", appFromForm.AppName);
 
             isAddAppDialogVisible = false;
-            await LoadApplicationsAsync();
+            await LoadApplicationsAsync(); // Reload applications to show the new one
             ToastService.ShowSuccess($"Application '{appFromForm.AppName}' added successfully!", 5000);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error saving external application: {ex.Message}");
-            ToastService.ShowError("Error adding application", 5000);
+            _logger.LogError(ex, "Error saving external application: {Message}", ex.Message);
+            ToastService.ShowError("Error adding application. Please try again. If the problem persists, note the error details from the logs.", 7000);
         }
     }
 
@@ -120,11 +160,19 @@ else
     /// </summary>
     private void HandleCancelAddApp()
     {
-        isAddAppDialogVisible = false;
+        _logger.LogInformation("Add Application dialog cancelled.");
+        isAddAppDialogVisible = false; // Hide the dialog.
     }
 
+    /// <summary>
+    /// Opens a confirmation dialog before deleting an external application.
+    /// If confirmed, deletes the application and reloads the list.
+    /// </summary>
+    /// <param name="appToDelete">The application to be deleted.</param>
     private async Task OpenDeleteConfirmationDialogAsync(ExternalApplicationDto appToDelete)
     {
+        _logger.LogInformation("Opening delete confirmation dialog for application: {AppName}", appToDelete.AppName);
+        // Show a confirmation dialog to the user.
         var dialog = await DialogService.ShowConfirmationAsync(
             $"Are you sure you want to delete '{appToDelete.AppName}'?",
             "Yes, delete", "No, cancel", "Confirm Deletion");
@@ -133,17 +181,23 @@ else
 
         if (!result.Cancelled)
         {
+            _logger.LogInformation("Delete confirmed for application: {AppName}", appToDelete.AppName);
             try
             {
                 await ExternalAppService.DeleteAsync(appToDelete.Id);
+                _logger.LogInformation("Application {AppName} deleted successfully.", appToDelete.AppName);
                 ToastService.ShowSuccess("Application deleted successfully.");
-                await LoadApplicationsAsync();
+                await LoadApplicationsAsync(); // Reload applications
             }
             catch (Exception ex)
             {
-                ToastService.ShowError($"Failed to delete application: {ex.Message}");
-                // Log the exception ex
+                _logger.LogError(ex, "Failed to delete application {AppName}: {Message}", appToDelete.AppName, ex.Message);
+                ToastService.ShowError($"Failed to delete '{appToDelete.AppName}'. Please try again. If the problem persists, note the error details from the logs.", 7000);
             }
+        }
+        else
+        {
+            _logger.LogInformation("Delete cancelled for application: {AppName}", appToDelete.AppName);
         }
     }
 }
