@@ -1,0 +1,64 @@
+@using UPortal.Dtos
+@using UPortal.Components.Dialogs
+@using Microsoft.FluentUI.AspNetCore.Components
+@inherits Microsoft.FluentUI.AspNetCore.Components.FluentDialogBase<UserRoleAssignmentDialogParameters, List<int>>
+
+@if (Content != null && Content.User != null)
+{
+    <FluentDialogHeader>
+        <FluentDialogTitle>Manage Roles for @Content.User.Name</FluentDialogTitle>
+    </FluentDialogHeader>
+
+    <FluentDialogBody>
+        @if (Content.AllRoles != null && Content.AllRoles.Any())
+        {
+            <p>Select roles to assign to the user:</p>
+            <div style="max-height: 300px; overflow-y: auto; border: 1px solid var(--neutral-stroke-rest); padding: 10px;">
+                @foreach (var role in Content.AllRoles)
+                {
+                    <div>
+                        <FluentCheckbox Label="@role.Name"
+                                      @bind-Value="@roleSelection[role.Id]" />
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <p>No roles available to assign.</p>
+        }
+    </FluentDialogBody>
+
+    <FluentDialogFooter>
+        <FluentButton Appearance="Appearance.Accent" OnClick="HandleSave">Save Roles</FluentButton>
+        <FluentButton Appearance="Appearance.Neutral" OnClick="CancelAsync">Cancel</FluentButton>
+    </FluentDialogFooter>
+}
+
+@code {
+    private Dictionary<int, bool> roleSelection = new Dictionary<int, bool>();
+
+    protected override void OnInitialized()
+    {
+        if (Content != null && Content.AllRoles != null)
+        {
+            foreach (var role in Content.AllRoles)
+            {
+                roleSelection[role.Id] = Content.SelectedRoleIds?.Contains(role.Id) ?? false;
+            }
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        if (Content != null)
+        {
+            var selectedIds = roleSelection.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+            await HideAsync(selectedIds);
+        }
+        else
+        {
+            await CancelAsync();
+        }
+    }
+}

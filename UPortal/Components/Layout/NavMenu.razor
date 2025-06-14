@@ -1,14 +1,18 @@
 @using Microsoft.FluentUI.AspNetCore.Components
 @using Microsoft.FluentUI.AspNetCore.Components.Icons
+@using Microsoft.AspNetCore.Authorization
 @inject IExternalApplicationService ExternalAppService
 @inject NavigationManager NavigationManager
+@inject IAuthorizationService AuthorizationService
+@inject IIconService IconService
+
 
 <FluentNavMenu Id="main-nav" Collapsible="true" Width="250" Title="Navigation menu" AriaLabel="Main navigation menu">
     <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size24.Home())" IconColor="Color.Accent">Home</FluentNavLink>
-    <FluentNavGroup Title="Applications" Icon="@(new Icons.Regular.Size24.Apps())">
+
+    <FluentNavGroup Title="Applications" Icon="@(new Icons.Regular.Size24.Apps())" Gap="10px">
         @if (_externalApplications != null)
         {
-
             @foreach (var app in _externalApplications)
             {
                 <FluentNavLink Href="@($"/app/{app.Id}")" Icon="@(IconService.GetIcon(app.IconName))" IconColor="Color.Accent">
@@ -17,32 +21,50 @@
             }
         }
     </FluentNavGroup>
-    <FluentNavGroup Title="Admin" Icon="@(new Icons.Regular.Size24.PersonAlert())">
-        <FluentNavLink Href="/admin/locations" Icon="@(new Icons.Regular.Size24.Building())" IconColor="Color.Accent">Locations</FluentNavLink>
-        <FluentNavLink Href="/admin/machines" Icon="@(new Icons.Regular.Size24.Desktop())" IconColor="Color.Accent">Machines</FluentNavLink>
-        <FluentNavLink Href="/admin/users" Icon="@(new Icons.Regular.Size24.People())" IconColor="Color.Accent">Users Admin</FluentNavLink>
-    </FluentNavGroup>
+
+    <AuthorizeView Policy="RequireAccessAdminPagesPermission">
+        <Authorized>
+            <FluentNavGroup Title="Administration" Icon="@(new Icons.Regular.Size24.Settings())" Gap="10px">
+                <FluentNavLink Href="/admin/locations" Icon="@(new Icons.Regular.Size24.Building())" IconColor="Color.Accent">Locations</FluentNavLink>
+                <FluentNavLink Href="/admin/machines" Icon="@(new Icons.Regular.Size24.Desktop())" IconColor="Color.Accent">Machines</FluentNavLink>
+                <FluentNavLink Href="/admin/users" Icon="@(new Icons.Regular.Size24.People())" IconColor="Color.Accent">Users Admin</FluentNavLink>
+                <AuthorizeView Policy="RequireManageRolesPermission">
+                    <Authorized>
+                        <FluentNavLink Href="/admin/roles" Icon="@(new Icons.Regular.Size20.PeopleSettings())">Role Management</FluentNavLink>
+                    </Authorized>
+                </AuthorizeView>
+                <AuthorizeView Policy="RequireAssignRolesPermission">
+                    <Authorized>
+                        <FluentNavLink Href="/admin/user-roles" Icon="@(new Icons.Regular.Size20.PersonTag())">User Role Assignments</FluentNavLink>
+                    </Authorized>
+                </AuthorizeView>
+            </FluentNavGroup>
+        </Authorized>
+    </AuthorizeView>
 </FluentNavMenu>
 
 
 @code {
     private List<ExternalApplicationDto>? _externalApplications;
+    private bool expanded = true; // Default state based on your previous code structure if needed, else remove if not used.
 
     protected override async Task OnInitializedAsync()
     {
         await LoadExternalApplicationsAsync();
-        // A more robust solution would use a shared service to notify NavMenu of changes.
-        // For now, this loads apps when the NavMenu is first initialized.
-        // If an app is added/deleted, a page refresh might be needed to see NavMenu updates,
-        // or we'd need to implement an eventing system.
     }
 
     private async Task LoadExternalApplicationsAsync()
     {
-        _externalApplications = await ExternalAppService.GetAllAsync();
+        try
+        {
+            _externalApplications = await ExternalAppService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            // Log error or handle appropriately
+            Console.WriteLine($"Error loading external applications: {ex.Message}");
+            _externalApplications = new List<ExternalApplicationDto>(); // Ensure it's not null
+        }
         StateHasChanged();
     }
-
-    // This method could be used if we implement IDisposable and subscribe to a service event
-    // public void Dispose() { /* Unsubscribe from service events */ }
 }
