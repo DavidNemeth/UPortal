@@ -3,14 +3,13 @@
 
 <PageTitle>Machines</PageTitle>
 
+@attribute [Authorize(Policy = PermissionPolicies.ManageMachines)]
+
 <FluentStack VerticalAlignment="VerticalAlignment.Center"
              HorizontalAlignment="HorizontalAlignment.SpaceBetween">
-
     <h1>Machines</h1>
-
     <FluentButton IconStart="@(new Icons.Regular.Size20.Add())" Appearance="Appearance.Accent" OnClick="@OpenAddDialogAsync">
     </FluentButton>
-
 </FluentStack>
 
 @if (machines is null)

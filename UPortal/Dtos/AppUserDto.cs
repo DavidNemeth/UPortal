@@ -34,6 +34,11 @@
         /// Gets or sets the name of the user's location.
         /// </summary>
         public string LocationName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Gets or sets the roles assigned to the user.
+        /// </summary>
+        public List<RoleDto> Roles { get; set; } = new List<RoleDto>();
     }
 
     /// <summary>
@@ -51,4 +56,14 @@
         /// </summary>
         public int LocationId { get; set; }
     }
+
+    /// <summary>
+    /// Data Transfer Object for managing a user's role assignments in a dialog.
+    /// It only contains the list of role IDs being managed.
+    /// </summary>
+    public class AssignUserRolesDto
+    {
+        public List<int> RoleIds { get; set; } = new();
+    }
+
 }

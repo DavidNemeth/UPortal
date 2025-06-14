@@ -1,16 +1,12 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using UPortal.Data.Models;
-using Microsoft.Extensions.Logging; // Added for logging
-using System.Collections.Generic; // Added for List
-using System.Linq; // Added for Linq methods like AnyAsync
-using Microsoft.Extensions.Configuration; // Added for IConfiguration
 
 namespace UPortal.Data
 {
     /// <summary>
     /// Provides static methods for seeding initial data into the database.
     /// </summary>
-    public static class DataSeeder
+    public class DataSeeder
     {
         /// <summary>
         /// Seeds the database with initial data if it hasn't been seeded already.
@@ -25,7 +21,7 @@ namespace UPortal.Data
             var scope = app.Services.CreateScope();
             var serviceProvider = scope.ServiceProvider;
             var contextFactory = serviceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
-            var logger = serviceProvider.GetRequiredService<ILogger<DataSeeder>>();
+            var logger = serviceProvider.GetRequiredService<ILogger<DataSeeder>>(); // This line now works correctly.
             var configuration = serviceProvider.GetRequiredService<IConfiguration>(); // For admin user config
 
             // Create a new DbContext instance for this seeding operation.

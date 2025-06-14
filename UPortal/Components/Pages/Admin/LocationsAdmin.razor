@@ -4,6 +4,8 @@
 
 <PageTitle>Locations</PageTitle>
 
+@attribute [Authorize(Policy = PermissionPolicies.ManageLocations)]
+
 <FluentStack VerticalAlignment="VerticalAlignment.Center"
              HorizontalAlignment="HorizontalAlignment.SpaceBetween">
 

@@ -7,10 +7,10 @@
 @inject IIconService IconService
 
 
-<FluentNavMenu Id="main-nav" Collapsible="true" Width="250" Title="Navigation menu" AriaLabel="Main navigation menu">
+<FluentNavMenu Id="main-nav" Collapsible="true" Width="250" Title="Navigation menu">
     <FluentNavLink Href="/" Match="NavLinkMatch.All" Icon="@(new Icons.Regular.Size24.Home())" IconColor="Color.Accent">Home</FluentNavLink>
 
-    <FluentNavGroup Title="Applications" Icon="@(new Icons.Regular.Size24.Apps())" Gap="10px">
+    <FluentNavGroup Title="Applications" Icon="@(new Icons.Regular.Size24.Apps())">
         @if (_externalApplications != null)
         {
             @foreach (var app in _externalApplications)
@@ -22,21 +22,17 @@
         }
     </FluentNavGroup>
 
-    <AuthorizeView Policy="RequireAccessAdminPagesPermission">
+    <AuthorizeView Policy="@PermissionPolicies.AccessAdminPages">
         <Authorized>
-            <FluentNavGroup Title="Administration" Icon="@(new Icons.Regular.Size24.Settings())" Gap="10px">
+            <FluentNavGroup Title="Administration" Icon="@(new Icons.Regular.Size24.PeopleEdit())">
                 <FluentNavLink Href="/admin/locations" Icon="@(new Icons.Regular.Size24.Building())" IconColor="Color.Accent">Locations</FluentNavLink>
                 <FluentNavLink Href="/admin/machines" Icon="@(new Icons.Regular.Size24.Desktop())" IconColor="Color.Accent">Machines</FluentNavLink>
                 <FluentNavLink Href="/admin/users" Icon="@(new Icons.Regular.Size24.People())" IconColor="Color.Accent">Users Admin</FluentNavLink>
-                <AuthorizeView Policy="RequireManageRolesPermission">
-                    <Authorized>
-                        <FluentNavLink Href="/admin/roles" Icon="@(new Icons.Regular.Size20.PeopleSettings())">Role Management</FluentNavLink>
-                    </Authorized>
+                <AuthorizeView Policy="@PermissionPolicies.ManageRoles" Context="manageRolesContext">
+                    <FluentNavLink Href="/admin/roles" Icon="@(new Icons.Regular.Size20.PeopleSettings())">Role Management</FluentNavLink>
                 </AuthorizeView>
-                <AuthorizeView Policy="RequireAssignRolesPermission">
-                    <Authorized>
-                        <FluentNavLink Href="/admin/user-roles" Icon="@(new Icons.Regular.Size20.PersonTag())">User Role Assignments</FluentNavLink>
-                    </Authorized>
+                <AuthorizeView Policy="@PermissionPolicies.AssignRoles" Context="assignRolesContext">
+                    <FluentNavLink Href="/admin/user-roles" Icon="@(new Icons.Regular.Size20.PersonTag())">User Role Assignments</FluentNavLink>
                 </AuthorizeView>
             </FluentNavGroup>
         </Authorized>
@@ -46,7 +42,6 @@
 
 @code {
     private List<ExternalApplicationDto>? _externalApplications;
-    private bool expanded = true; // Default state based on your previous code structure if needed, else remove if not used.
 
     protected override async Task OnInitializedAsync()
     {

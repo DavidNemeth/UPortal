@@ -1,11 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using UPortal.Data;
 using UPortal.Dtos;
-using UPortal.Data.Models; // Required for Permission model
 
 namespace UPortal.Services
 {
@@ -20,7 +15,7 @@ namespace UPortal.Services
             _logger = logger;
         }
 
-        public async Task<IEnumerable<PermissionDto>> GetAllPermissionsAsync()
+        public async Task<List<PermissionDto>> GetAllPermissionsAsync()
         {
             _logger.LogInformation("GetAllPermissionsAsync called");
             await using var context = await _contextFactory.CreateDbContextAsync();

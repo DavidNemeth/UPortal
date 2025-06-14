@@ -6,6 +6,8 @@
 @using UPortal.Dtos
 @using UPortal.Components.Pages.Admin 
 
+@attribute [Authorize(Policy = PermissionPolicies.ManageUsers)]
+
 <PageTitle>Users</PageTitle>
 
 <FluentStack VerticalAlignment="VerticalAlignment.Center" HorizontalGap="10">
@@ -26,7 +28,6 @@ else
         <PropertyColumn Property="@(dto => dto.Id)" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.Name)" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.LocationName)" Title="Location" Sortable="true" />
-        <PropertyColumn Property="@(dto => dto.IsAdmin)" Title="Admin" Sortable="true" />
         <PropertyColumn Property="@(dto => dto.IsActive)" Title="Active" Sortable="true" />
 
         <TemplateColumn Title="Actions" Align="Align.End">
@@ -58,7 +59,6 @@ else
         var userToUpdate = new UpdateAppUserDto
         {
             IsActive = userToEdit.IsActive,
-            IsAdmin = userToEdit.IsAdmin,
             LocationId = userToEdit.LocationId // Add LocationId
         };
 

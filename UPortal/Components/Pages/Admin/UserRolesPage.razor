@@ -1,32 +1,33 @@
 @page "/admin/user-roles"
+@using Microsoft.AspNetCore.Authorization
 @using UPortal.Dtos
 @using UPortal.Services
 @using UPortal.Components.Dialogs
 @using Microsoft.FluentUI.AspNetCore.Components
-@using Microsoft.FluentUI.AspNetCore.Components.Extensions
 @inject IAppUserService AppUserService
-@inject IRoleService RoleService
 @inject IDialogService DialogService
+@inject IToastService ToastService
 @inject ILogger<UserRolesPage> Logger
-@using Microsoft.AspNetCore.Authorization
 
-@attribute [Authorize(Policy = "RequireAssignRolesPermission")]
+@attribute [Authorize(Policy = PermissionPolicies.AssignRoles)]
 
-<h3>User Role Assignments</h3>
+<PageTitle>User Role Assignments</PageTitle>
 
-@if (isLoading)
+<h1>User Role Assignments</h1>
+
+@if (users is null)
 {
-    <p><em>Loading users and roles...</em> <FluentProgressRing /></p>
+    <FluentProgressRing />
+    <p><em>Loading...</em></p>
 }
-else if (loadError != null)
+else
 {
-    <p style="color: red;"><em>Error loading data: @loadError</em></p>
-}
-else if (users != null)
-{
-    <FluentDataGrid Items="@users" GridTemplateColumns="1fr 1fr 2fr auto" TGridItem="AppUserDto">
-        <PropertyColumn Property="@(u => u.Name)" Sortable="true" Title="User Name"/>
-        <PropertyColumn Property="@(u => u.AzureAdObjectId)" Sortable="true" Title="Azure AD Object ID"/>
+    <FluentDataGrid Pagination="@pagination"
+                    RowSize="@DataGridRowSize.Medium"
+                    Items="@users.AsQueryable()"
+                    GridTemplateColumns="1fr 2fr 2fr auto" TGridItem="AppUserDto">
+        <PropertyColumn Property="@(u => u.Name)" Sortable="true" Title="User Name" />
+        <PropertyColumn Property="@(u => u.AzureAdObjectId)" Sortable="true" Title="Azure AD Object ID" />
         <TemplateColumn Title="Assigned Roles">
             @if (context.Roles != null && context.Roles.Any())
             {
@@ -38,150 +39,68 @@ else if (users != null)
             }
         </TemplateColumn>
         <TemplateColumn Title="Actions" Align="Align.End">
-            <FluentButton IconStart="@(new Icons.Regular.Size20.Edit())" Title="Manage Roles" OnClick="@(() => OpenManageUserRolesDialog(context))" Appearance="Appearance.Stealth" />
+            <FluentButton IconStart="@(new Icons.Regular.Size16.Edit())" OnClick="@(() => OpenEditDialogAsync(context))"></FluentButton>
         </TemplateColumn>
     </FluentDataGrid>
-}
-else
-{
-    <p>No users found.</p>
+
+    <FluentPaginator State="@pagination" />
 }
 
 @code {
-    private IEnumerable<AppUserDto>? users;
-    private IEnumerable<RoleDto>? allRoles;
-    private bool isLoading = true;
-    private string? loadError;
+    private List<AppUserDto> users;
+    private PaginationState pagination = new PaginationState() { ItemsPerPage = 10 };
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadDataAsync();
+        await RefreshGridDataAsync();
     }
 
-    private async Task LoadDataAsync()
+    private async Task OpenEditDialogAsync(AppUserDto userToEdit)
     {
-        try
+        var dto = new AssignUserRolesDto
         {
-            isLoading = true;
-            loadError = null;
-            Logger.LogInformation("UserRolesPage: Initializing and loading data.");
-
-            var usersTask = AppUserService.GetAllAsync(); // This now needs to populate AppUserDto.Roles
-            var rolesTask = RoleService.GetAllRolesAsync();
-
-            await Task.WhenAll(usersTask, rolesTask);
-
-            users = await usersTask;
-            allRoles = await rolesTask;
-
-            // Ensure AppUserDto.Roles is populated. This might require a change in AppUserService.GetAllAsync()
-            // or a subsequent call here to populate them if not already done.
-            // For this step, we assume AppUserService.GetAllAsync() is updated or will be updated
-            // to include the roles for each user. If not, this page might not display roles correctly initially.
-            // A more robust way would be:
-            // var tempUsers = await usersTask;
-            // foreach(var user in tempUsers) { user.Roles = await AppUserService.GetRolesForUserAsync(user.Id); }
-            // users = tempUsers;
-            // This, however, can lead to N+1 queries if not handled carefully in the service.
-            // We will assume AppUserService.GetAllAsync() is updated to correctly populate user.Roles.
-
-            Logger.LogInformation("UserRolesPage: Users and roles loaded. Users count: {UsersCount}, All Roles count: {RolesCount}", users?.Count(), allRoles?.Count());
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "UserRolesPage: Error loading users or roles.");
-            loadError = $"An error occurred while loading data: {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
-
-    private async Task RefreshUsersList()
-    {
-        try
-        {
-            isLoading = true;
-            users = await AppUserService.GetAllAsync(); // Re-fetch users, assuming it populates roles.
-            Logger.LogInformation("UserRolesPage: Users list refreshed. Count: {UsersCount}", users?.Count());
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "UserRolesPage: Error refreshing users list.");
-            loadError = $"An error occurred while refreshing users: {ex.Message}";
-        }
-        finally
-        {
-            isLoading = false;
-            StateHasChanged();
-        }
-    }
-
-    private async Task OpenManageUserRolesDialog(AppUserDto user)
-    {
-        if (allRoles == null)
-        {
-            Logger.LogError("UserRolesPage: All roles not loaded, cannot open manage user roles dialog for user ID {UserId}.", user.Id);
-            loadError = "Roles data is not available. Please try refreshing the page.";
-            return;
-        }
-
-        // Get current roles for the user to pre-select in the dialog
-        // AppUserDto should ideally have its Roles property populated.
-        var currentUserRoles = user.Roles ?? new List<RoleDto>();
-        var selectedRoleIds = currentUserRoles.Select(r => r.Id).ToList();
-
-        var dialogParams = new UserRoleAssignmentDialogParameters
-        {
-            User = user,
-            SelectedRoleIds = selectedRoleIds,
-            AllRoles = allRoles ?? new List<RoleDto>()
+            RoleIds = userToEdit.Roles.Select(r => r.Id).ToList()
         };
 
-        var parameters = new DialogParameters<UserRoleAssignmentDialogParameters>
+        var dialog = await DialogService.ShowDialogAsync<UserRoleAssignmentDialog>(dto, new DialogParameters()
         {
-            Content = dialogParams,
-            PrimaryAction = "Save Roles", // This text is not used by the dialog itself due to custom footer
-            SecondaryAction = "Cancel",   // This text is not used by the dialog itself
-            Title = $"Manage Roles for {user.Name}", // This text is not used by the dialog itself
+            Title = $"Manage Roles for '{userToEdit.Name}'",
+            PreventDismissOnOverlayClick = true,
+            PreventScroll = true,
             Width = "500px"
-        };
+        });
 
-        Logger.LogInformation("UserRolesPage: Opening manage roles dialog for user ID {UserId}, Name: {UserName}.", user.Id, user.Name);
-        var dialog = await DialogService.ShowDialogAsync<UserRoleAssignmentDialog>(parameters);
         var result = await dialog.Result;
 
-        if (!result.Cancelled && result.Data is List<int> newSelectedRoleIds)
+        if (!result.Cancelled && result.Data is not null)
         {
-            Logger.LogInformation("UserRolesPage: Manage roles dialog submitted for user ID {UserId}. New role IDs: {RoleIds}", user.Id, string.Join(", ", newSelectedRoleIds));
             try
             {
-                // Determine roles to add and remove
-                var rolesToAdd = newSelectedRoleIds.Except(selectedRoleIds).ToList();
-                var rolesToRemove = selectedRoleIds.Except(newSelectedRoleIds).ToList();
-
-                foreach (var roleId in rolesToAdd)
-                {
-                    await AppUserService.AssignRoleToUserAsync(user.Id, roleId);
-                    Logger.LogInformation("UserRolesPage: Assigned role ID {RoleId} to user ID {UserId}.", roleId, user.Id);
-                }
-                foreach (var roleId in rolesToRemove)
-                {
-                    await AppUserService.RemoveRoleFromUserAsync(user.Id, roleId);
-                    Logger.LogInformation("UserRolesPage: Removed role ID {RoleId} from user ID {UserId}.", roleId, user.Id);
-                }
-
-                // Refresh the user list to show updated roles
-                await RefreshUsersList();
+                var updatedDto = (AssignUserRolesDto)result.Data;
+                await AppUserService.UpdateUserRolesAsync(userToEdit.Id, updatedDto.RoleIds);
+                ToastService.ShowSuccess($"Roles for '{userToEdit.Name}' updated successfully.");
+                await RefreshGridDataAsync();
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "UserRolesPage: Error updating roles for user ID {UserId}.", user.Id);
-                loadError = $"Error updating roles: {ex.Message}";
+                Logger.LogError(ex, "Error updating user roles for user ID {UserId}.", userToEdit.Id);
+                ToastService.ShowError("Failed to update user roles.");
             }
         }
-        else if (result.Cancelled) { Logger.LogInformation("UserRolesPage: Manage roles dialog for user ID {UserId} was cancelled.", user.Id); }
-        else { Logger.LogWarning("UserRolesPage: Manage roles dialog for user ID {UserId} returned unexpected data or was closed without saving.", user.Id); }
+    }
+
+    private async Task RefreshGridDataAsync()
+    {
+        try
+        {
+            users = await AppUserService.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading users.");
+            ToastService.ShowError("Could not load users.");
+            users = new List<AppUserDto>(); // Ensure users is not null.
+        }
+        StateHasChanged();
     }
 }

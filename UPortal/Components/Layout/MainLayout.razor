@@ -20,13 +20,12 @@
 {
     <FluentLayout Style="display: flex; flex-direction: column; height: 100vh;">
         <FluentHeader>
-            <FluentLabel Typo="Typography.PageTitle">Portal Header</FluentLabel>
+            <FluentNavLink Href="/"><FluentLabel Typo="Typography.Header">UPortal</FluentLabel></FluentNavLink>
             <FluentSpacer />
             <FluentButton IconStart="@(new Icons.Regular.Size24.Settings())" Appearance="Appearance.Stealth" OnClick="@ToggleThemeSelector" Title="Theme Settings" Style="margin-right: 10px;" />
 
             <AuthorizeView>
                 <Authorized>
-                    <FluentLabel Style="margin-right: 10px;">Hello, @userName!</FluentLabel> @* Changed to use userName field *@
                     <FluentButton Appearance="Appearance.Stealth" OnClick="HandleSignOut">Sign Out</FluentButton>
                 </Authorized>
             </AuthorizeView>

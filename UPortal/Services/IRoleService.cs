@@ -6,9 +6,9 @@ namespace UPortal.Services
 {
     public interface IRoleService
     {
-        Task<IEnumerable<RoleDto>> GetAllRolesAsync();
+        Task<List<RoleDto>> GetAllRolesAsync();
         Task<RoleDto> GetRoleByIdAsync(int id);
-        Task<RoleDto> CreateRoleAsync(RoleCreateDto roleDto);
+        Task<RoleDto> CreateRoleAsync(CreateRoleDto roleDto);
         Task UpdateRoleAsync(int id, RoleUpdateDto roleDto);
         Task DeleteRoleAsync(int id);
         Task AssignPermissionToRoleAsync(int roleId, int permissionId);

@@ -6,6 +6,8 @@
 @inject IToastService ToastService
 @using UPortal.Dtos
 
+@attribute [Authorize(Policy = PermissionPolicies.ViewExternalApplications)]
+
 <div style="margin-bottom: 10px; margin-top: 10px;">
     <FluentButton IconStart="@(new Icons.Regular.Size24.ArrowHookUpLeft())" Appearance="Appearance.Stealth" OnClick="GoBackAsync">Navigate Back</FluentButton>
 </div>

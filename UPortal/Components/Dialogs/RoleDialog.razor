@@ -1,0 +1,129 @@
+﻿@using UPortal.Dtos
+@using UPortal.Services
+@using Microsoft.FluentUI.AspNetCore.Components
+@using System.ComponentModel.DataAnnotations
+@implements IDialogContentComponent<CreateRoleDto>
+
+@inject IPermissionService PermissionService
+@inject IToastService ToastService
+@inject ILogger<RoleDialog> _logger
+
+@if (_editContext is not null)
+{
+    <FluentDialogHeader ShowDismiss="true">
+        <FluentStack>
+            <FluentIcon Value="@(new Icons.Regular.Size24.PeopleSettings())" />
+            <FluentLabel Typo="Typography.PaneHeader">
+                @Dialog.Instance.Parameters.Title
+            </FluentLabel>
+        </FluentStack>
+    </FluentDialogHeader>
+
+    <FluentDialogBody>
+        <EditForm EditContext="_editContext">
+            <DataAnnotationsValidator />
+            <FluentStack Orientation="Orientation.Vertical">
+                <FluentTextField Name="role_name"
+                                 @bind-Value="Content.Name"
+                                 Label="Role Name"
+                                 Placeholder="Enter the role name..."
+                                 Required="true"
+                                 Style="width: 100%;" />
+
+                <br />
+                <FluentLabel>Permissions:</FluentLabel>
+                @if (allPermissions is not null)
+                {
+                    <div style="max-height: 250px; overflow-y: auto; border: 1px solid var(--neutral-stroke-rest); padding: 10px; margin-top: 5px;">
+                        @foreach (var perm in allPermissions)
+                        {
+                            <div>
+                                <FluentCheckbox Label="@perm.Name"
+                                                Value="@permissionSelection[perm.Id]"
+                                                ValueChanged="@((newValue) => permissionSelection[perm.Id] = newValue)" />
+                            </div>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <p><em>Loading permissions...</em></p>
+                }
+            </FluentStack>
+        </EditForm>
+    </FluentDialogBody>
+
+    <FluentDialogFooter>
+        <FluentButton Appearance="Appearance.Neutral" OnClick="@CancelAsync">
+            Cancel
+        </FluentButton>
+        <FluentButton Appearance="Appearance.Accent" OnClick="@SaveAsync" Disabled="@(!_editContext.Validate())">
+            Save
+        </FluentButton>
+    </FluentDialogFooter>
+}
+
+
+@code
+{
+    private EditContext _editContext = default!;
+    private List<PermissionDto> allPermissions;
+    private Dictionary<int, bool> permissionSelection = new();
+
+    [CascadingParameter]
+    public FluentDialog Dialog { get; set; } = default!;
+
+    [Parameter]
+    public CreateRoleDto Content { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _logger.LogInformation("RoleDialog initializing for role: {RoleName}", Content?.Name ?? "New Role");
+        _editContext = new EditContext(Content);
+
+        try
+        {
+            _logger.LogInformation("Fetching permissions for RoleDialog.");
+            allPermissions = await PermissionService.GetAllPermissionsAsync();
+            _logger.LogInformation("Successfully fetched {PermissionCount} permissions.", allPermissions?.Count ?? 0);
+
+            // Populate the dictionary to track checkbox states.
+            foreach (var perm in allPermissions)
+            {
+                permissionSelection[perm.Id] = Content.PermissionIds?.Contains(perm.Id) ?? false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching permissions for RoleDialog: {Message}", ex.Message);
+            ToastService.ShowError("Error loading permission data. Please try again.", 7000);
+            allPermissions ??= new List<PermissionDto>();
+        }
+        _logger.LogInformation("RoleDialog initialization completed for role: {RoleName}", Content?.Name ?? "New Role");
+    }
+
+    private async Task SaveAsync()
+    {
+        _logger.LogInformation("SaveAsync called for role: {RoleName}", Content.Name);
+        if (!_editContext.Validate())
+        {
+            _logger.LogWarning("RoleDialog form is invalid for role: {RoleName}. Save aborted.", Content.Name);
+            return;
+        }
+
+        // Update the content with the selected permission IDs before closing.
+        Content.PermissionIds = permissionSelection
+            .Where(kv => kv.Value)
+            .Select(kv => kv.Key)
+            .ToList();
+
+        _logger.LogInformation("RoleDialog form is valid. Closing dialog with content for role: {RoleName}", Content.Name);
+        await Dialog.CloseAsync(Content);
+    }
+
+    private async Task CancelAsync()
+    {
+        _logger.LogInformation("CancelAsync called for role: {RoleName}. Closing dialog.", Content?.Name ?? "New Role");
+        await Dialog.CancelAsync();
+    }
+}

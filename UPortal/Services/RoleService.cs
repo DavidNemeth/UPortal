@@ -21,7 +21,7 @@ namespace UPortal.Services
             _logger = logger;
         }
 
-        public async Task<IEnumerable<RoleDto>> GetAllRolesAsync()
+        public async Task<List<RoleDto>> GetAllRolesAsync()
         {
             _logger.LogInformation("GetAllRolesAsync called");
             await using var context = await _contextFactory.CreateDbContextAsync();
@@ -74,7 +74,7 @@ namespace UPortal.Services
             return role;
         }
 
-        public async Task<RoleDto> CreateRoleAsync(RoleCreateDto roleDto)
+        public async Task<RoleDto> CreateRoleAsync(CreateRoleDto roleDto)
         {
             _logger.LogInformation("CreateRoleAsync called for role: {RoleName}", roleDto.Name);
             if (roleDto == null)
